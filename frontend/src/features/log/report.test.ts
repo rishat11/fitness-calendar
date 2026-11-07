@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { PerformedItem } from "../../api/client";
 import { buildExerciseReports, formatDuration, formatSetLine, reportTotals } from "./report";
 
-function item(partial: Partial<PerformedItem> & Pick<PerformedItem, "sets" | "weight_type">): PerformedItem {
+function item(partial: Partial<PerformedItem> & Pick<PerformedItem, "sets">): PerformedItem {
   return {
     id: "item",
     position: 0,
     exercise_id: "ex",
     name: "Жим",
     equipment: "barbell",
+    weight_type: "standard",
     weight_unit: "kg",
     weight_step: 2.5,
     note: null,
@@ -43,7 +44,10 @@ describe("workout report", () => {
   });
 
   it("describes a working set, a warm-up and a dumbbell", () => {
-    const bar = { weight_type: "standard", weight_unit: "kg" };
+    const bar: Pick<PerformedItem, "weight_type" | "weight_unit"> = {
+      weight_type: "standard",
+      weight_unit: "kg",
+    };
     expect(
       formatSetLine(bar, {
         weight: 100,
