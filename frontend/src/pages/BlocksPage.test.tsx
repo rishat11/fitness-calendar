@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,13 @@ const PLACEMENT_ID = "p1";
 let blocks: { id: string; name: string; length_weeks: number }[];
 let placements: { id: string; block_id: string; name: string; length_weeks: number; start_date: string; end_date: string }[];
 let applyStatus: number;
+let suggestion: {
+  suggest: boolean;
+  placement_id: string;
+  week_position: number | null;
+  message: string;
+  reasons: { code: string; text: string }[];
+};
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(body === undefined || status === 204 ? null : JSON.stringify(body), {
@@ -41,6 +48,21 @@ function handleRequest(url: string, init?: RequestInit): Response {
     placements = [];
     return jsonResponse(undefined, 204);
   }
+  if (path === `/api/blocks/placements/${PLACEMENT_ID}/deload-suggestion` && method === "GET") {
+    return jsonResponse(suggestion);
+  }
+  if (
+    path === `/api/blocks/placements/${PLACEMENT_ID}/deload-suggestion/accept` &&
+    method === "POST"
+  ) {
+    suggestion = { ...suggestion, suggest: false, reasons: [] };
+    return jsonResponse({
+      placement_id: PLACEMENT_ID,
+      week_position: 2,
+      volume_multiplier: 0.5,
+      target_rir: 4,
+    });
+  }
   return jsonResponse({ detail: "Не найдено" }, 404);
 }
 
@@ -66,6 +88,13 @@ describe("BlocksPage", () => {
     blocks = [{ id: BLOCK_ID, name: "Масса", length_weeks: 4 }];
     placements = [];
     applyStatus = 201;
+    suggestion = {
+      suggest: false,
+      placement_id: PLACEMENT_ID,
+      week_position: null,
+      message: "Признаков усталости пока недостаточно, чтобы разгрузиться раньше плана.",
+      reasons: [],
+    };
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string, init?: RequestInit) => handleRequest(url, init)),
@@ -158,5 +187,49 @@ describe("BlocksPage", () => {
     await user.click(within(list).getByRole("button", { name: "Убрать из календаря" }));
 
     expect(callsWith("DELETE", `/api/blocks/placements/${PLACEMENT_ID}`)).toHaveLength(1);
+  });
+
+  it("shows the guide and accepts an early deload", async () => {
+    placements = [
+      {
+        id: PLACEMENT_ID,
+        block_id: BLOCK_ID,
+        name: "Масса",
+        length_weeks: 4,
+        start_date: "2026-11-02",
+        end_date: "2026-11-29",
+      },
+    ];
+    suggestion = {
+      suggest: true,
+      placement_id: PLACEMENT_ID,
+      week_position: 2,
+      message: "Есть признаки усталости. Эту неделю можно сделать разгрузкой раньше плана.",
+      reasons: [
+        {
+          code: "low_rir",
+          text: "В последней тренировочной неделе RIR 0–1 у двух и более упражнений.",
+        },
+      ],
+    };
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByRole("region", { name: "Справка" })).toBeInTheDocument();
+    expect(screen.getByText("Мезоцикл")).toBeInTheDocument();
+    expect(screen.getByText("Двойная прогрессия")).toBeInTheDocument();
+
+    const offer = await screen.findByRole("region", { name: "Предложение разгрузки" });
+    expect(offer).toHaveTextContent("RIR 0–1");
+    await user.click(within(offer).getByRole("button", { name: "Сделать эту неделю разгрузкой" }));
+
+    expect(
+      callsWith("POST", `/api/blocks/placements/${PLACEMENT_ID}/deload-suggestion/accept`),
+    ).toHaveLength(1);
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("region", { name: "Предложение разгрузки" }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

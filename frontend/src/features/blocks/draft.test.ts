@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  addWeek,
   draftToInput,
   emptyBlockDraft,
   emptyWeekDraft,
@@ -31,6 +32,13 @@ describe("draftToInput", () => {
             rep_max: 12,
             target_rir: 2,
             volume_multiplier: 1,
+          },
+          {
+            week_type: "deload",
+            rep_min: 8,
+            rep_max: 12,
+            target_rir: 4,
+            volume_multiplier: 0.5,
           },
         ],
         schedule: [
@@ -74,6 +82,16 @@ describe("draftToInput", () => {
     expect(draftToInput(draft)).toEqual({
       error: "Неделя 1: множитель объёма больше 0 и не больше 1",
     });
+  });
+
+  it("по умолчанию ставит разгрузку последней и вставляет новую неделю перед ней", () => {
+    const draft = emptyBlockDraft();
+    expect(draft.weeks.map((week) => week.weekType)).toEqual(["hypertrophy", "deload"]);
+    expect(draft.weeks[1].volumeMultiplier).toBe("0.5");
+    expect(draft.weeks[1].targetRir).toBe("4");
+
+    const added = addWeek(draft.weeks);
+    expect(added.map((week) => week.weekType)).toEqual(["hypertrophy", "hypertrophy", "deload"]);
   });
 
   it("ограничивает число недель", () => {

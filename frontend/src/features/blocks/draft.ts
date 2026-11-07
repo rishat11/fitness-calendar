@@ -50,12 +50,36 @@ export function emptyWeekDraft(): WeekDraft {
   };
 }
 
+/** Совпадает с backend: 50% объёма и RIR 4, диапазон повторов как у рабочей недели. */
+export const DEFAULT_DELOAD_VOLUME = "0.5";
+export const DEFAULT_DELOAD_RIR = "4";
+
+export function deloadWeekDraft(): WeekDraft {
+  keyCounter += 1;
+  return {
+    key: `week-${keyCounter}`,
+    weekType: "deload",
+    repMin: "8",
+    repMax: "12",
+    targetRir: DEFAULT_DELOAD_RIR,
+    volumeMultiplier: DEFAULT_DELOAD_VOLUME,
+  };
+}
+
 export function emptyBlockDraft(): BlockDraft {
   return {
     name: "",
-    weeks: [emptyWeekDraft()],
+    weeks: [emptyWeekDraft(), deloadWeekDraft()],
     schedule: Array.from({ length: DAYS_IN_WEEK }, () => EMPTY_CHOICE),
   };
+}
+
+/** Новая неделя встаёт перед разгрузкой, чтобы та оставалась последней. */
+export function addWeek(weeks: WeekDraft[]): WeekDraft[] {
+  const next = emptyWeekDraft();
+  const deloadAt = weeks.findIndex((week) => week.weekType === "deload");
+  if (deloadAt === -1) return [...weeks, next];
+  return [...weeks.slice(0, deloadAt), next, ...weeks.slice(deloadAt)];
 }
 
 function parseInteger(value: string): number | null {
