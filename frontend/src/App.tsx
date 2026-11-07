@@ -16,6 +16,7 @@ import { CalendarPage } from "./pages/CalendarPage";
 import { WorkoutLogPage } from "./pages/WorkoutLogPage";
 import { VolumePage } from "./pages/VolumePage";
 import { BlocksPage } from "./pages/BlocksPage";
+import { NutritionPage } from "./pages/NutritionPage";
 
 /** Разделы с реальными экранами; остальные пункты меню пока показывают «Скоро». */
 const IMPLEMENTED_ROUTES = new Set([
@@ -25,6 +26,7 @@ const IMPLEMENTED_ROUTES = new Set([
   "/workouts",
   "/blocks",
   "/volume",
+  "/nutrition",
 ]);
 
 const queryClient = new QueryClient({
@@ -61,6 +63,7 @@ export function App() {
               <Route path="workouts/:workoutId" element={<WorkoutEditorPage />} />
               <Route path="blocks" element={<BlocksPage />} />
               <Route path="volume" element={<VolumePage />} />
+              <Route path="nutrition" element={<NutritionPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Route>

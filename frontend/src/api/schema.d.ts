@@ -541,6 +541,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/nutrition/intake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Intake */
+        get: operations["read_intake_api_nutrition_intake_get"];
+        /** Update Intake */
+        put: operations["update_intake_api_nutrition_intake_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/nutrition/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Macro Target
+         * @description Цель недоступна, пока нет замера InBody. Эндпоинт ничего не создаёт и не меняет.
+         *
+         *     На этапе 4 после сохранения замера здесь вызывается target_macros, и заглушка
+         *     заменяется посчитанными граммами и калориями. Сейчас этот вызов не подключён.
+         */
+        get: operations["read_macro_target_api_nutrition_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/progression/{exercise_id}": {
         parameters: {
             query?: never;
@@ -1145,6 +1186,29 @@ export interface components {
             /** Performed Workouts */
             performed_workouts: number;
         };
+        /** IntakeResponse */
+        IntakeResponse: {
+            /** Protein G */
+            protein_g: number | null;
+            /** Fat G */
+            fat_g: number | null;
+            /** Carbs G */
+            carbs_g: number | null;
+            /** Calories */
+            calories: number | null;
+        };
+        /**
+         * IntakeUpdate
+         * @description Полная замена текущего БЖУ. Калории клиент не присылает.
+         */
+        IntakeUpdate: {
+            /** Protein G */
+            protein_g: number;
+            /** Fat G */
+            fat_g: number;
+            /** Carbs G */
+            carbs_g: number;
+        };
         /** ItemCreate */
         ItemCreate: {
             /**
@@ -1166,6 +1230,21 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** MacroTargetResponse */
+        MacroTargetResponse: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: string | null;
+            /** Protein G */
+            protein_g: number | null;
+            /** Fat G */
+            fat_g: number | null;
+            /** Carbs G */
+            carbs_g: number | null;
+            /** Calories */
+            calories: number | null;
         };
         /**
          * MuscleVolumeGroup
@@ -3751,6 +3830,103 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_intake_api_nutrition_intake_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_intake_api_nutrition_intake_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IntakeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_macro_target_api_nutrition_targets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MacroTargetResponse"];
+                };
             };
             /** @description Validation Error */
             422: {
