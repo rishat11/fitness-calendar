@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Segoe UI Variable", "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+  --color-accent: #10b981;
+  --color-accent-strong: #059669;
+  --color-accent-soft: #d1fae5;
+}
+
+body {
+  @apply bg-stone-50 text-stone-900 antialiased dark:bg-[#0b0f14] dark:text-stone-100;
+  font-family: var(--font-sans);
+  background-image: radial-gradient(1200px 500px at 0% -10%, rgb(16 185 129 / 0.08), transparent 60%);
+}
+
+.dark body {
+  background-image: radial-gradient(1200px 500px at 0% -10%, rgb(16 185 129 / 0.12), transparent 60%);
+}
+
+/* Карточка: мягкая рамка и тень вместо плоского серого блока. */
+.card {
+  @apply rounded-2xl border border-stone-200/80 bg-white shadow-sm shadow-stone-900/5 dark:border-white/10 dark:bg-white/[0.04] dark:shadow-black/30;
+}
+
+.btn-primary {
+  @apply inline-flex min-h-11 items-center justify-center rounded-xl bg-accent-strong px-4 text-sm font-semibold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 active:scale-[0.98] dark:bg-accent dark:text-stone-950 dark:hover:bg-emerald-400;
+}
+
+/* Tailwind сбрасывает outline. Видимое кольцо нужно и в светлой, и в тёмной теме. */
+:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 2px;
+}
+
+.dark :focus-visible {
+  outline-color: #f8fafc;
+}
