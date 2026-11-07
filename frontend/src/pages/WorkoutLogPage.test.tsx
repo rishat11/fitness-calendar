@@ -17,7 +17,6 @@ const BENCH = {
   weight_step: 2.5,
   rep_min: 8,
   rep_max: 12,
-  archived: false,
 };
 
 function emptySet(id: string, position: number) {
@@ -175,7 +174,7 @@ describe("WorkoutLogPage", () => {
 
     await user.click(within(hint).getByRole("button", { name: "Принять" }));
     await waitFor(() => {
-      expect(within(exercise).getByRole("textbox", { name: "Жим штанги лёжа, подход 1: Вес" })).toHaveValue("102.5");
+      expect(within(exercise).getByRole("textbox", { name: "Жим штанги лёжа, подход 1: Вес" })).toHaveValue("102,5");
     });
     await waitFor(() => {
       expect(within(exercise).queryByRole("region", { name: "Подсказка по прогрессии" })).toBeNull();
@@ -199,13 +198,17 @@ describe("WorkoutLogPage", () => {
     expect(wakeRequest).toHaveBeenCalledWith("screen");
   });
 
-  it("raises weight with one tap and repeats the previous session with one tap", async () => {
+  it("accepts a typed weight and repeats the previous session with one tap", async () => {
     const user = userEvent.setup();
     renderPage();
     const first = await screen.findByRole("group", { name: "Подход 1" });
+    const weight = within(first).getByRole("textbox", { name: "Жим штанги лёжа, подход 1: Вес" });
 
-    await user.click(within(first).getByRole("button", { name: "Жим штанги лёжа, подход 1: Вес: больше" }));
-    expect(within(first).getByRole("textbox", { name: "Жим штанги лёжа, подход 1: Вес" })).toHaveValue("2.5");
+    expect(within(first).queryByRole("button", { name: "Жим штанги лёжа, подход 1: Вес: больше" })).toBeNull();
+    await user.type(weight, "102,5");
+    expect(weight).toHaveValue("102,5");
+    await user.tab();
+    expect(weight).toHaveValue("102,5");
 
     await user.click(within(first).getByRole("button", { name: "Как в прошлый раз" }));
     expect(within(first).getByRole("textbox", { name: "Жим штанги лёжа, подход 1: Вес" })).toHaveValue("100");
@@ -303,10 +306,17 @@ describe("WorkoutLogPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Завершить" }));
 
-    expect(await screen.findByRole("heading", { name: "Личные рекорды" })).toBeInTheDocument();
+    expect(await screen.findByText("Отчёт")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "День A" })).toBeInTheDocument();
+    expect(screen.getByText(/1 ч/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Личные рекорды" })).toBeInTheDocument();
     expect(screen.getByText("Жим штанги лёжа: рекорд веса 100 кг")).toBeInTheDocument();
     expect(screen.getByText("Жим штанги лёжа: рекорд повторов 8 при 100 кг")).toBeInTheDocument();
     expect(screen.getByText("Жим штанги лёжа: рекорд 1ПМ 126,67 кг")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "К записи" }));
+    expect(screen.getByRole("button", { name: "Отчёт" })).toBeInTheDocument();
+    expect(screen.queryByText(/1 ч/)).toBeNull();
   });
 
   it("starts the rest timer after a working set is saved and pauses it", async () => {

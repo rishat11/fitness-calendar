@@ -41,7 +41,13 @@ from app.models.plan import (
     PlanChangeLog,
     PlannedWorkout,
 )
-from app.services.block_calendar import PlacementSpan, load_placements, open_slots, slot_row
+from app.services.block_calendar import (
+    PlacementSpan,
+    find_open_slot,
+    load_placements,
+    open_slots,
+    slot_row,
+)
 from app.services.block_rules import Slot
 from app.services.plan import _lock_user_plan
 
@@ -113,8 +119,8 @@ class BlockChange:
     name: str
     start_before: dt.date
     start_after: dt.date
-    end_before: dt.date
-    end_after: dt.date
+    end_before: dt.date | None
+    end_after: dt.date | None
     absorbed: bool
 
 
@@ -329,7 +335,19 @@ def _block_changes(
     change_by_id = {change.id: change for change in changes}
     result: list[BlockChange] = []
     for span in placements:
-        if span.start >= anchor_date:
+        if span.end is None:
+            if span.start < anchor_date:
+                raise ShiftError(
+                    f"Блок «{span.name}» без конца можно сдвинуть только целиком, "
+                    "от его первого дня. Одну тренировку перенесите отдельно."
+                )
+            start_after, end_after = span.start + delta, None
+            absorbed = all(
+                _follows_start(slot, change_by_id.get(slot.id), days)
+                for slot in entries
+                if slot.virtual and slot.placement_id == span.id
+            )
+        elif span.start >= anchor_date:
             start_after, end_after = span.start + delta, span.end + delta
             absorbed = all(
                 _follows_start(slot, change_by_id.get(slot.id), days)
@@ -341,7 +359,7 @@ def _block_changes(
             absorbed = False
         else:
             continue
-        if end_after < start_after:
+        if end_after is not None and end_after < start_after:
             raise ShiftError(
                 f"Сдвиг сделал бы блок «{span.name}» пустым: он кончился бы раньше старта"
             )
@@ -473,14 +491,19 @@ class _PlanState:
         ]
 
 
-async def _load_state(db: AsyncSession, user_id: uuid.UUID) -> _PlanState:
+async def _load_state(
+    db: AsyncSession, user_id: uuid.UUID, focus_id: uuid.UUID | None = None
+) -> _PlanState:
     result = await db.scalars(select(PlannedWorkout).where(PlannedWorkout.user_id == user_id))
+    rows = list(result.all())
     placements = {p.id: p for p in await load_placements(db, user_id)}
-    return _PlanState(
-        rows=list(result.all()),
-        placements=placements,
-        slots=await open_slots(db, user_id),
-    )
+    slots = await open_slots(db, user_id)
+    known = {row.id for row in rows} | {slot.id for slot in slots}
+    if focus_id is not None and focus_id not in known:
+        focused = await find_open_slot(db, user_id, focus_id)
+        if focused is not None:
+            slots.append(focused)
+    return _PlanState(rows=rows, placements=placements, slots=slots)
 
 
 def _payload(
@@ -558,7 +581,7 @@ async def preview_shift(
     other_id: uuid.UUID | None = None,
     resolution: str | None = None,
 ) -> ShiftPlan:
-    state = await _load_state(db, user_id)
+    state = await _load_state(db, user_id, anchor_id)
     return compute_shift(
         state.entries,
         operation=operation,
@@ -589,7 +612,7 @@ async def apply_shift(
         return ShiftPlan((), ()), None
 
     await _lock_user_plan(db, user_id)
-    state = await _load_state(db, user_id)
+    state = await _load_state(db, user_id, anchor_id)
     plan = compute_shift(
         state.entries,
         operation=operation,
@@ -681,7 +704,7 @@ async def apply_shift(
             {
                 "placement_id": str(block.placement_id),
                 "start": placement.start_date.isoformat(),
-                "end": placement.end_date.isoformat(),
+                "end": None if placement.end_date is None else placement.end_date.isoformat(),
             }
         )
         placement.start_date = block.start_after
@@ -762,7 +785,8 @@ async def undo_last_shift(db: AsyncSession, user_id: uuid.UUID) -> tuple[ShiftPl
             if placement is None:
                 raise ShiftError("Блок из истории уже удалён, отмена невозможна")
             placement.start_date = dt.date.fromisoformat(block_item["start"])
-            placement.end_date = dt.date.fromisoformat(block_item["end"])
+            saved_end = block_item["end"]
+            placement.end_date = dt.date.fromisoformat(saved_end) if saved_end else None
 
         await db.flush()
         remaining = await _load_state(db, user_id)

@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkoutsPage } from "./WorkoutsPage";
 
@@ -56,6 +56,12 @@ function handleRequest(url: string, init?: RequestInit): Response {
   return jsonResponse({ detail: "Не найдено" }, 404);
 }
 
+function OpenedWorkout() {
+  const location = useLocation();
+  const editing = (location.state as { editing?: boolean } | null)?.editing;
+  return <p>{editing ? "Редактор открыт для правки" : "Редактор открыт"}</p>;
+}
+
 function renderPage() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -63,7 +69,7 @@ function renderPage() {
       <MemoryRouter initialEntries={["/workouts"]}>
         <Routes>
           <Route path="/workouts" element={<WorkoutsPage />} />
-          <Route path="/workouts/:workoutId" element={<p>Редактор открыт</p>} />
+          <Route path="/workouts/:workoutId" element={<OpenedWorkout />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -107,7 +113,7 @@ describe("WorkoutsPage", () => {
     await user.type(within(form).getByLabelText("Название тренировки"), "День C");
     await user.click(within(form).getByRole("button", { name: "Создать" }));
 
-    expect(await screen.findByText("Редактор открыт")).toBeInTheDocument();
+    expect(await screen.findByText("Редактор открыт для правки")).toBeInTheDocument();
     expect(JSON.parse(postCalls()[0][1]?.body as string)).toEqual({ name: "День C", items: [] });
   });
 

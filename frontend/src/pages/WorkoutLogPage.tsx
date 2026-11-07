@@ -13,6 +13,8 @@ import { formatLongDate } from "../features/calendar/dates";
 import { useExercises } from "../features/exercises/useExercises";
 import {
   copiedLoad,
+  decimalDraft,
+  formatWeightInput,
   parseDecimal,
   parseWhole,
   rirLabel,
@@ -30,7 +32,8 @@ import {
   readOutbox,
   type OutboxOp,
 } from "../features/log/outbox";
-import { formatRecord, formatVolume, moveFocus, summarize } from "../features/log/summary";
+import { WorkoutReport } from "../features/log/WorkoutReport";
+import { formatVolume, moveFocus, summarize } from "../features/log/summary";
 import { RestTimerPanel, type RestTimerHandle } from "../features/log/RestTimerPanel";
 import { useWakeLock } from "../features/log/useWakeLock";
 import { ProgressionHintCard } from "../features/progression/ProgressionHint";
@@ -95,8 +98,9 @@ function LogEditor({ initial }: { initial: PerformedWorkout }) {
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [undo, setUndo] = useState<{ itemId: string; set: SetLog } | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
   const timer = useRef<number | null>(null);
-  const { data: exercises = [] } = useExercises({ includeArchived: false, search: "" });
+  const { data: exercises = [] } = useExercises({ search: "" });
   useWakeLock(true);
   const restRef = useRef<RestTimerHandle>(null);
   // Подходы, по которым таймер уже отработал. Уже сохранённые с сервера не запускают его при открытии.
@@ -157,6 +161,7 @@ function LogEditor({ initial }: { initial: PerformedWorkout }) {
             const current = workoutRef.current;
             const next = { ...current, finished_at: data.finished_at, summary: data.summary };
             commit(next);
+            setReportOpen(true);
             void queryClient.invalidateQueries({ queryKey: ["plan"] });
           }
           const savedSet = /^(?:set|add):(.+)$/.exec(op.dedupeKey);
@@ -338,7 +343,10 @@ function LogEditor({ initial }: { initial: PerformedWorkout }) {
   };
 
   const totals = summarize(workout);
-  const records = workout.finished_at ? (workout.summary.records ?? []) : [];
+
+  if (reportOpen && workout.finished_at) {
+    return <WorkoutReport workout={workout} onClose={() => setReportOpen(false)} />;
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
@@ -354,18 +362,10 @@ function LogEditor({ initial }: { initial: PerformedWorkout }) {
         <p className="text-sm">
           Рабочих подходов: {totals.workingSets}. Объём: {formatVolume(totals.volume, totals.unit)}
         </p>
-        {records.length > 0 && (
-          <section className="flex flex-col gap-1 text-sm">
-            <h2 className="font-medium">Личные рекорды</h2>
-            <ul className="flex flex-col gap-1">
-              {records.map((record) => (
-                <li key={`${record.exercise_id}-${record.kind}`}>{formatRecord(record)}</li>
-              ))}
-            </ul>
-          </section>
-        )}
         {workout.finished_at && (
-          <p className="text-sm text-slate-600 dark:text-slate-300">Тренировка завершена</p>
+          <button type="button" className={`${primaryButtonClass} mt-2 w-fit`} onClick={() => setReportOpen(true)}>
+            Отчёт
+          </button>
         )}
       </header>
 
@@ -600,20 +600,16 @@ function ExerciseBlock({
               </button>
             </div>
             {fields.weight && (
-              <NumberField
+              <WeightField
                 label={`${item.name}, подход ${setIndex + 1}: ${fields.weight}`}
                 value={logged.weight}
-                step={item.weight_step}
-                inputMode="decimal"
                 onChange={(weight) => onChangeSet(logged.id, { weight })}
               />
             )}
             {fields.extra && (
-              <NumberField
+              <WeightField
                 label={`${item.name}, подход ${setIndex + 1}: ${fields.extra}`}
                 value={logged.extra_weight}
-                step={item.weight_step}
-                inputMode="decimal"
                 onChange={(extra_weight) => onChangeSet(logged.id, { extra_weight })}
               />
             )}
@@ -695,6 +691,60 @@ function ExerciseBlock({
         />
       </label>
     </section>
+  );
+}
+
+function WeightField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number | null;
+  onChange: (value: number | null) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const [draftValue, setDraftValue] = useState(value);
+  if (draftValue !== value) {
+    setDraftValue(value);
+    setDraft(null);
+  }
+  const shown = draft ?? (value == null ? "" : formatWeightInput(value));
+  const commit = (raw: string) => {
+    if (raw.trim() === "") onChange(null);
+    else {
+      const parsed = parseDecimal(raw);
+      if (parsed != null) onChange(parsed);
+    }
+  };
+  return (
+    <label className="flex flex-col gap-1 text-sm font-medium">
+      {label.split(": ").at(-1)}
+      <input
+        data-log-field
+        inputMode="decimal"
+        autoComplete="off"
+        aria-label={label}
+        className={`${inputClass} w-full`}
+        value={shown}
+        onChange={(event) => {
+          const raw = event.target.value;
+          if (!decimalDraft(raw)) return;
+          setDraft(raw);
+          if (/[.,]$/.test(raw)) return;
+          commit(raw);
+        }}
+        onBlur={() => {
+          if (draft != null) commit(draft);
+          setDraft(null);
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          moveFocus(event.currentTarget, 1);
+        }}
+      />
+    </label>
   );
 }
 

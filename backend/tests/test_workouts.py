@@ -85,7 +85,6 @@ async def test_create_keeps_exercise_order_and_per_set_targets(client: AsyncClie
     assert [item["exercise_id"] for item in created["items"]] == [row, bench]
     assert [item["position"] for item in created["items"]] == [0, 1]
     assert created["items"][0]["exercise"]["name"] == "Тяга верхнего блока"
-    assert created["items"][0]["exercise"]["archived"] is False
 
     bench_sets = created["items"][1]["sets"]
     assert [
@@ -271,50 +270,14 @@ async def test_exercise_in_workout_cannot_be_deleted(client: AsyncClient) -> Non
 
     response = await client.delete(f"/api/exercises/{bench}")
     assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Упражнение входит в тренировки. Сначала уберите его оттуда."
+    )
     assert (await client.get(f"/api/exercises/{bench}")).status_code == 200
-
-    # Архивирование разрешено, упражнение остаётся в тренировке с пометкой.
-    assert (await client.post(f"/api/exercises/{bench}/archive")).status_code == 200
-    workout = (await client.get(f"/api/workouts/{created['id']}")).json()
-    assert workout["items"][0]["exercise"]["archived"] is True
 
     # После того как упражнение убрали из тренировки, его можно удалить.
     await client.put(f"/api/workouts/{created['id']}", json={"name": "День 1", "items": []})
     assert (await client.delete(f"/api/exercises/{bench}")).status_code == 204
-
-
-async def test_archived_exercise_cannot_be_added_but_can_stay(client: AsyncClient) -> None:
-    await _register(client, "user@example.com")
-    bench = await _exercise(client)
-    row = await _exercise(client, ROW_BODY)
-    created = await _workout(client, "День 1", [{"exercise_id": bench, "sets": [_set()]}])
-    await client.post(f"/api/exercises/{row}/archive")
-    await client.post(f"/api/exercises/{bench}/archive")
-
-    # Новую позицию с архивным упражнением не добавить ни при создании, ни при правке.
-    response = await client.post(
-        "/api/workouts",
-        json={"name": "Новая", "items": [{"exercise_id": row, "sets": [_set()]}]},
-    )
-    assert response.status_code == 422
-    response = await client.put(
-        f"/api/workouts/{created['id']}",
-        json={
-            "name": "День 1",
-            "items": [
-                {"exercise_id": bench, "sets": [_set()]},
-                {"exercise_id": row, "sets": [_set()]},
-            ],
-        },
-    )
-    assert response.status_code == 422
-
-    # Уже стоящее архивное упражнение остаётся: правка названия и подходов проходит.
-    response = await client.put(
-        f"/api/workouts/{created['id']}",
-        json={"name": "День 1 (правка)", "items": [{"exercise_id": bench, "sets": [_set(6, 8)]}]},
-    )
-    assert response.status_code == 200, response.text
 
 
 async def test_workouts_are_isolated_between_users(client: AsyncClient) -> None:

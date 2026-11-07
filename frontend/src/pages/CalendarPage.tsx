@@ -127,14 +127,6 @@ export function CalendarPage() {
     });
   };
 
-  const swapCandidates = (entries ?? []).filter(
-    (item) =>
-      item.kind === "workout" &&
-      item.status === "planned" &&
-      !item.is_fixed &&
-      item.id !== selectedEntry?.id,
-  );
-
   const title = view === "month" ? formatMonthTitle(year, month) : formatWeekTitle(days);
 
   return (
@@ -251,7 +243,6 @@ export function CalendarPage() {
         <EntryPanel
           key={`${selectedEntry.id}-${selectedEntry.date}`}
           entry={selectedEntry}
-          swapCandidates={swapCandidates}
           onClose={() => setSelectedSnapshot(null)}
           onUpdated={setSelectedSnapshot}
           onShifted={(changes) => {

@@ -16,7 +16,6 @@ type StoredExercise = {
   weight_step: number;
   rep_min: number;
   rep_max: number;
-  archived: boolean;
 };
 
 const PROFILE = {
@@ -40,7 +39,6 @@ function exercise(overrides: Partial<StoredExercise>): StoredExercise {
     weight_step: 2.5,
     rep_min: 8,
     rep_max: 12,
-    archived: false,
     ...overrides,
   };
 }
@@ -55,7 +53,7 @@ function jsonResponse(body: unknown, status = 200) {
 let store: StoredExercise[];
 let nextId: number;
 
-/** Имитация API: список с фильтрами, создание и архивирование. */
+/** Имитация API: список с поиском, создание и удаление. */
 function handleRequest(url: string, init?: RequestInit): Response {
   const method = init?.method ?? "GET";
   const parsed = new URL(url, "http://localhost");
@@ -64,24 +62,24 @@ function handleRequest(url: string, init?: RequestInit): Response {
     return jsonResponse(PROFILE);
   }
   if (parsed.pathname === "/api/exercises" && method === "GET") {
-    const includeArchived = parsed.searchParams.get("include_archived") === "true";
     const q = (parsed.searchParams.get("q") ?? "").toLowerCase();
-    return jsonResponse(
-      store.filter(
-        (item) => (includeArchived || !item.archived) && item.name.toLowerCase().includes(q),
-      ),
-    );
+    return jsonResponse(store.filter((item) => item.name.toLowerCase().includes(q)));
   }
   if (parsed.pathname === "/api/exercises" && method === "POST") {
-    const created = { ...JSON.parse(init?.body as string), id: String(nextId++), archived: false };
+    const created = { ...JSON.parse(init?.body as string), id: String(nextId++) };
     store.push(created);
     return jsonResponse(created, 201);
   }
-  const archiveMatch = parsed.pathname.match(/^\/api\/exercises\/(\d+)\/archive$/);
-  if (archiveMatch && method === "POST") {
-    const target = store.find((item) => item.id === archiveMatch[1]);
-    if (target) target.archived = true;
-    return jsonResponse(target);
+  const deleteMatch = parsed.pathname.match(/^\/api\/exercises\/(\d+)$/);
+  if (deleteMatch && method === "DELETE") {
+    if (deleteMatch[1] === "1") {
+      return jsonResponse(
+        { detail: "Упражнение входит в тренировки. Сначала уберите его оттуда." },
+        409,
+      );
+    }
+    store = store.filter((item) => item.id !== deleteMatch[1]);
+    return new Response(null, { status: 204 });
   }
   return jsonResponse({ detail: "Не найдено" }, 404);
 }
@@ -106,7 +104,7 @@ describe("ExercisesPage", () => {
     store = [
       exercise({ id: "1", name: "Жим штанги лёжа", primary_muscle: "chest" }),
       exercise({ id: "2", name: "Приседания со штангой", primary_muscle: "quadriceps" }),
-      exercise({ id: "3", name: "Тяга блока", primary_muscle: "back", equipment: "cable", archived: true }),
+      exercise({ id: "3", name: "Тяга блока", primary_muscle: "back", equipment: "cable" }),
     ];
     nextId = 4;
     vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => handleRequest(url, init)));
@@ -116,16 +114,14 @@ describe("ExercisesPage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows active exercises and reveals archived ones on demand", async () => {
-    const user = userEvent.setup();
+  it("lists exercises without an archive control", async () => {
     renderPage();
 
     expect(await screen.findByText("Жим штанги лёжа")).toBeInTheDocument();
     expect(screen.getByText("Приседания со штангой")).toBeInTheDocument();
-    expect(screen.queryByText("Тяга блока")).not.toBeInTheDocument();
-
-    await user.click(screen.getByLabelText("Показать архив"));
-    expect(await screen.findByText("Тяга блока")).toBeInTheDocument();
+    expect(screen.getByText("Тяга блока")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "В архив" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Показать архив")).not.toBeInTheDocument();
   });
 
   it("filters the list by name", async () => {
@@ -198,17 +194,33 @@ describe("ExercisesPage", () => {
     expect(postCalls()).toHaveLength(0);
   });
 
-  it("archiving removes an exercise from the active list", async () => {
+  it("refuses to delete an exercise that is still in a workout", async () => {
     const user = userEvent.setup();
     renderPage();
     const row = (await screen.findByText("Жим штанги лёжа")).closest("li");
     expect(row).not.toBeNull();
 
-    await user.click(within(row as HTMLElement).getByRole("button", { name: "В архив" }));
+    await user.click(within(row as HTMLElement).getByRole("button", { name: "Удалить" }));
+    await user.click(within(row as HTMLElement).getByRole("button", { name: "Удалить" }));
+
+    expect(
+      await within(row as HTMLElement).findByRole("alert"),
+    ).toHaveTextContent("Упражнение входит в тренировки. Сначала уберите его оттуда.");
+    expect(screen.getByText("Жим штанги лёжа")).toBeInTheDocument();
+  });
+
+  it("deletes an exercise that is not used", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const row = (await screen.findByText("Приседания со штангой")).closest("li");
+    expect(row).not.toBeNull();
+
+    await user.click(within(row as HTMLElement).getByRole("button", { name: "Удалить" }));
+    await user.click(within(row as HTMLElement).getByRole("button", { name: "Удалить" }));
 
     await waitFor(() => {
-      expect(screen.queryByText("Жим штанги лёжа")).not.toBeInTheDocument();
+      expect(screen.queryByText("Приседания со штангой")).not.toBeInTheDocument();
     });
-    expect(screen.getByText("Приседания со штангой")).toBeInTheDocument();
+    expect(screen.getByText("Жим штанги лёжа")).toBeInTheDocument();
   });
 });

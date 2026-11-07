@@ -17,7 +17,7 @@ from app.services.workouts import exercise_is_in_templates
 router = APIRouter(prefix="/api/exercises", tags=["exercises"])
 
 NOT_FOUND = "Упражнение не найдено"
-IN_USE = "Упражнение входит в тренировки. Его можно только отправить в архив."
+IN_USE = "Упражнение входит в тренировки. Сначала уберите его оттуда."
 
 
 async def _owned_or_404(db: DbSession, user_id: uuid.UUID, exercise_id: uuid.UUID) -> Exercise:
@@ -32,10 +32,9 @@ async def _owned_or_404(db: DbSession, user_id: uuid.UUID, exercise_id: uuid.UUI
 async def list_user_exercises(
     user: CurrentUser,
     db: DbSession,
-    include_archived: bool = False,
     q: str | None = Query(default=None, max_length=120),
 ) -> list[Exercise]:
-    exercises = await list_exercises(db, user.id, include_archived=include_archived, query=q)
+    exercises = await list_exercises(db, user.id, query=q)
     return list(exercises)
 
 
@@ -81,23 +80,3 @@ async def delete_user_exercise(
     await db.delete(exercise)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.post("/{exercise_id}/archive", response_model=ExerciseResponse)
-async def archive_user_exercise(
-    exercise_id: uuid.UUID, user: CurrentUser, db: DbSession
-) -> Exercise:
-    exercise = await _owned_or_404(db, user.id, exercise_id)
-    exercise.archived = True
-    await db.commit()
-    return exercise
-
-
-@router.post("/{exercise_id}/restore", response_model=ExerciseResponse)
-async def restore_user_exercise(
-    exercise_id: uuid.UUID, user: CurrentUser, db: DbSession
-) -> Exercise:
-    exercise = await _owned_or_404(db, user.id, exercise_id)
-    exercise.archived = False
-    await db.commit()
-    return exercise

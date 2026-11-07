@@ -4,12 +4,7 @@ import { type Exercise } from "../api/client";
 import { ExerciseForm } from "../components/ExerciseForm";
 import { QuickExerciseForm } from "../components/QuickExerciseForm";
 import { useProfile } from "../features/profile/useProfile";
-import {
-  useArchiveExercise,
-  useDeleteExercise,
-  useExercises,
-  useRestoreExercise,
-} from "../features/exercises/useExercises";
+import { useDeleteExercise, useExercises } from "../features/exercises/useExercises";
 import {
   WEIGHT_TYPE_OPTIONS,
   describeExercise,
@@ -22,11 +17,9 @@ const buttonClass =
 type Mode = { type: "idle" } | { type: "create" } | { type: "edit"; id: string };
 
 function ExerciseRow({ exercise, onEdit }: { exercise: Exercise; onEdit: () => void }) {
-  const archive = useArchiveExercise();
-  const restore = useRestoreExercise();
   const remove = useDeleteExercise();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const busy = archive.isPending || restore.isPending || remove.isPending;
+  const busy = remove.isPending;
 
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
@@ -38,11 +31,6 @@ function ExerciseRow({ exercise, onEdit }: { exercise: Exercise; onEdit: () => v
           >
             {exercise.name}
           </Link>
-          {exercise.archived && (
-            <span className="rounded bg-slate-200 px-2 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              В архиве
-            </span>
-          )}
         </div>
         <p className="text-sm text-slate-600 dark:text-slate-300">{describeExercise(exercise)}</p>
         <p className="text-sm text-slate-600 dark:text-slate-300">
@@ -72,25 +60,6 @@ function ExerciseRow({ exercise, onEdit }: { exercise: Exercise; onEdit: () => v
             <button type="button" className={buttonClass} disabled={busy} onClick={onEdit}>
               Изменить
             </button>
-            {exercise.archived ? (
-              <button
-                type="button"
-                className={buttonClass}
-                disabled={busy}
-                onClick={() => restore.mutate(exercise.id)}
-              >
-                Вернуть
-              </button>
-            ) : (
-              <button
-                type="button"
-                className={buttonClass}
-                disabled={busy}
-                onClick={() => archive.mutate(exercise.id)}
-              >
-                В архив
-              </button>
-            )}
             <button
               type="button"
               className={buttonClass}
@@ -115,9 +84,8 @@ export function ExercisesPage() {
   const { data: profile } = useProfile();
   const weightUnit = profile?.weight_unit ?? "kg";
   const [search, setSearch] = useState("");
-  const [includeArchived, setIncludeArchived] = useState(false);
   const [mode, setMode] = useState<Mode>({ type: "idle" });
-  const { data: exercises, isPending, isError } = useExercises({ includeArchived, search });
+  const { data: exercises, isPending, isError } = useExercises({ search });
 
   const closeForm = () => setMode({ type: "idle" });
 
@@ -127,26 +95,15 @@ export function ExercisesPage() {
 
       <QuickExerciseForm weightUnit={weightUnit} />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {mode.type === "create" ? null : (
-          <button
-            type="button"
-            onClick={() => setMode({ type: "create" })}
-            className="min-h-11 rounded-lg border border-slate-300 px-4 text-sm font-medium hover:bg-slate-200 dark:border-slate-700 dark:hover:bg-slate-800"
-          >
-            Создать подробно
-          </button>
-        )}
-        <label className="flex min-h-11 items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="size-5"
-            checked={includeArchived}
-            onChange={(event) => setIncludeArchived(event.target.checked)}
-          />
-          Показать архив
-        </label>
-      </div>
+      {mode.type === "create" ? null : (
+        <button
+          type="button"
+          onClick={() => setMode({ type: "create" })}
+          className="min-h-11 self-start rounded-lg border border-slate-300 px-4 text-sm font-medium hover:bg-slate-200 dark:border-slate-700 dark:hover:bg-slate-800"
+        >
+          Создать подробно
+        </button>
+      )}
 
       {mode.type === "create" && (
         <ExerciseForm defaultWeightUnit={weightUnit} onDone={closeForm} />

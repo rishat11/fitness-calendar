@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { copiedLoad, parseDecimal, parseWhole, stepNumber, targetLabel } from "./fields";
+import { copiedLoad, decimalDraft, formatWeightInput, parseDecimal, parseWhole, stepNumber, targetLabel } from "./fields";
 import type { SetLog } from "../../api/client";
 
 const SET: SetLog = {
@@ -25,9 +25,19 @@ describe("log fields", () => {
 
   it("accepts a comma as a decimal separator", () => {
     expect(parseDecimal("12,5")).toBe(12.5);
+    expect(formatWeightInput(12.5)).toBe("12,5");
     expect(parseDecimal("")).toBeNull();
     expect(parseWhole("10")).toBe(10);
     expect(parseWhole("10.5")).toBeNull();
+  });
+
+  it("keeps an unfinished decimal while the weight is being typed", () => {
+    expect(decimalDraft("")).toBe(true);
+    expect(decimalDraft("102,")).toBe(true);
+    expect(decimalDraft("102,5")).toBe(true);
+    expect(decimalDraft("102.50")).toBe(true);
+    expect(decimalDraft("-1")).toBe(false);
+    expect(decimalDraft("10 кг")).toBe(false);
   });
 
   it("copies load without warmup and negative flags", () => {

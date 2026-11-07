@@ -20,7 +20,6 @@ const BENCH: Exercise = {
   weight_step: 2.5,
   rep_min: 6,
   rep_max: 10,
-  archived: false,
 };
 
 function draftWith(overrides: Partial<WorkoutDraft> = {}): WorkoutDraft {
@@ -32,11 +31,11 @@ function draftWith(overrides: Partial<WorkoutDraft> = {}): WorkoutDraft {
 }
 
 describe("newItemDraft", () => {
-  it("creates three sets with the exercise's default rep range", () => {
+  it("creates four sets with the exercise's default rep range", () => {
     const item = newItemDraft(BENCH);
 
     expect(item.exerciseId).toBe("ex-1");
-    expect(item.sets).toHaveLength(3);
+    expect(item.sets).toHaveLength(4);
     expect(item.sets.every((set) => set.repMin === "6" && set.repMax === "10")).toBe(true);
     expect(item.sets.every((set) => set.targetRir === "" && set.restSeconds === "")).toBe(true);
   });
@@ -67,6 +66,7 @@ describe("validateDraft", () => {
           exercise_id: "ex-1",
           sets: [
             { rep_min: 3, rep_max: 5, target_rir: 0, rest_seconds: 240 },
+            { rep_min: 6, rep_max: 10, target_rir: null, rest_seconds: null },
             { rep_min: 6, rep_max: 10, target_rir: null, rest_seconds: null },
             { rep_min: 6, rep_max: 10, target_rir: null, rest_seconds: null },
           ],
@@ -141,7 +141,6 @@ describe("draftFromWorkout", () => {
             name: "Жим штанги лёжа",
             primary_muscle: "chest",
             equipment: "barbell",
-            archived: false,
           },
           sets: [
             { id: "s-1", rep_min: 3, rep_max: 5, target_rir: 0, rest_seconds: 240 },

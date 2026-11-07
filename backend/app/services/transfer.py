@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.block import BlockPlacement
 from app.models.exercise import Exercise
+from app.models.inbody import InbodyScan
 from app.models.log import PerformedItem, PerformedWorkout, SetLog
 from app.models.plan import PlanChangeLog, PlannedWorkout
 from app.models.profile import Profile
@@ -23,6 +24,7 @@ from app.schemas.transfer import (
     ExerciseExport,
     ExportDocument,
     ImportResult,
+    InbodyScanExport,
     PerformedItemExport,
     PerformedWorkoutExport,
     PlanChangeLogExport,
@@ -34,6 +36,7 @@ from app.schemas.transfer import (
     TemplateSetExport,
     WorkoutTemplateExport,
 )
+from app.services.inbody import create_scan
 from app.services.profile import get_or_create_profile, get_profile_or_default
 from app.services.progression import decision_fingerprint
 
@@ -79,6 +82,7 @@ def validate_links(document: ExportDocument) -> None:
     _require_unique((row.id for row in document.plan_change_logs), "журнал сдвигов")
     _require_unique((row.id for row in document.performed_workouts), "выполненные тренировки")
     _require_unique((row.id for row in document.progression_decisions), "подсказки прогрессии")
+    _require_unique((row.id for row in document.inbody_scans), "замеры InBody")
 
     exercise_ids = {row.id for row in document.exercises}
     template_ids = {row.id for row in document.workout_templates}
@@ -190,6 +194,7 @@ async def _clear_user_data(db: AsyncSession, user_id: uuid.UUID) -> None:
     await db.execute(delete(BlockPlacement).where(BlockPlacement.user_id == user_id))
     await db.execute(delete(WorkoutTemplate).where(WorkoutTemplate.user_id == user_id))
     await db.execute(delete(Exercise).where(Exercise.user_id == user_id))
+    await db.execute(delete(InbodyScan).where(InbodyScan.user_id == user_id))
 
 
 async def build_export(db: AsyncSession, user_id: uuid.UUID) -> ExportDocument:
@@ -232,6 +237,13 @@ async def build_export(db: AsyncSession, user_id: uuid.UUID) -> ExportDocument:
             select(ProgressionDecision)
             .where(ProgressionDecision.user_id == user_id)
             .order_by(ProgressionDecision.created_at, ProgressionDecision.id)
+        )
+    )
+    scans = list(
+        await db.scalars(
+            select(InbodyScan)
+            .where(InbodyScan.user_id == user_id)
+            .order_by(InbodyScan.measured_on, InbodyScan.measured_time, InbodyScan.id)
         )
     )
     return ExportDocument(
@@ -326,6 +338,22 @@ async def build_export(db: AsyncSession, user_id: uuid.UUID) -> ExportDocument:
             )
             for row in decisions
         ],
+        inbody_scans=[
+            InbodyScanExport(
+                id=row.id,
+                measured_on=row.measured_on,
+                measured_time=row.measured_time,
+                weight_kg=float(row.weight_kg),
+                smm_kg=float(row.smm_kg),
+                bfm_kg=float(row.bfm_kg),
+                pbf_percent=float(row.pbf_percent),
+                tbw_l=float(row.tbw_l),
+                visceral_fat_level=row.visceral_fat_level,
+                bmr_kcal=row.bmr_kcal,
+                segments=row.segments,
+            )
+            for row in scans
+        ],
     )
 
 
@@ -363,7 +391,6 @@ async def import_replace(
                 weight_step=row.weight_step,
                 rep_min=row.rep_min,
                 rep_max=row.rep_max,
-                archived=row.archived,
             )
         )
     await db.flush()
@@ -513,6 +540,10 @@ async def import_replace(
                 created_at=row.created_at,
             )
         )
+    await db.flush()
+
+    for row in document.inbody_scans:
+        await create_scan(db, user_id, row)
     await db.flush()
 
     profile = await get_or_create_profile(db, user_id)

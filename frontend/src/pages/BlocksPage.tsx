@@ -3,11 +3,15 @@ import { type Block, type BlockPlacement } from "../api/client";
 import { todayIso } from "../features/calendar/dates";
 import {
   addWeek,
-  DAY_LABELS,
+  dayLabel,
+  draftFromBlock,
   draftToInput,
   EMPTY_CHOICE,
   emptyBlockDraft,
   MAX_BLOCK_WEEKS,
+  MAX_CYCLE_DAYS,
+  resizeBlockWeeks,
+  resizeCycleDays,
   REST_CHOICE,
   WEEK_TYPE_LABELS,
   type BlockDraft,
@@ -17,12 +21,14 @@ import {
   useAcceptDeload,
   useApplyBlock,
   useBlockPlacements,
+  useRepeatPlacement,
   useBlocks,
   useCopyBlock,
   useCreateBlock,
   useDeleteBlock,
   useDeloadSuggestion,
   useRemoveBlockPlacement,
+  useUpdateBlock,
 } from "../features/blocks/useBlocks";
 import { useWorkouts } from "../features/workouts/useWorkouts";
 
@@ -33,19 +39,41 @@ const inputClass =
 const primaryButtonClass =
   "min-h-11 rounded-lg bg-slate-900 px-5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300";
 
-function weeksLabel(count: number): string {
+function countLabel(count: number, one: string, few: string, many: string): string {
   const mod10 = count % 10;
   const mod100 = count % 100;
-  if (mod10 === 1 && mod100 !== 11) return `${count} неделя`;
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} недели`;
-  return `${count} недель`;
+  if (mod10 === 1 && mod100 !== 11) return `${count} ${one}`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} ${few}`;
+  return `${count} ${many}`;
 }
 
-function BlockForm({ onDone }: { onDone?: () => void }) {
+function blockSpanLabel(cycles: number, cycleDays: number): string {
+  return `${countLabel(cycles, "цикл", "цикла", "циклов")} по ${countLabel(cycleDays, "дню", "дня", "дней")}`;
+}
+
+function BlockForm({
+  block,
+  onDone,
+  onCancel,
+}: {
+  block?: Block;
+  onDone?: () => void;
+  onCancel?: () => void;
+}) {
   const { data: templates } = useWorkouts();
   const createBlock = useCreateBlock();
-  const [draft, setDraft] = useState<BlockDraft>(emptyBlockDraft);
+  const updateBlock = useUpdateBlock();
+  const [draft, setDraft] = useState<BlockDraft>(() => (block ? draftFromBlock(block) : emptyBlockDraft()));
   const [error, setError] = useState<string | null>(null);
+  const saving = block ? updateBlock : createBlock;
+  const knownTemplates = new Set((templates ?? []).map((template) => template.id));
+  const missingTemplates = (block?.schedule ?? []).flatMap((item) => {
+    if (item.kind !== "workout" || !item.template_id || knownTemplates.has(item.template_id)) return [];
+    return [{ id: item.template_id, name: item.name ?? "Тренировка" }];
+  });
+  const extraTemplates = missingTemplates.filter(
+    (template, index) => missingTemplates.findIndex((item) => item.id === template.id) === index,
+  );
 
   const updateWeek = (index: number, patch: Partial<BlockDraft["weeks"][number]>) => {
     setDraft((current) => ({
@@ -64,33 +92,80 @@ function BlockForm({ onDone }: { onDone?: () => void }) {
       return;
     }
     setError(null);
-    createBlock.mutate(result.input, {
-      onSuccess: () => {
-        setDraft(emptyBlockDraft());
-        onDone?.();
-      },
-    });
+    const onSuccess = () => {
+      if (!block) setDraft(emptyBlockDraft());
+      onDone?.();
+    };
+    if (block) {
+      updateBlock.mutate({ id: block.id, body: result.input }, { onSuccess });
+      return;
+    }
+    createBlock.mutate(result.input, { onSuccess });
   };
 
   return (
     <form
       onSubmit={handleSubmit}
       noValidate
-      aria-label="Новый блок"
+      aria-label={block ? "Редактирование блока" : "Новый блок"}
       className="flex flex-col gap-4 rounded-xl border border-slate-200 p-4 dark:border-slate-800"
     >
-      <label className="flex flex-col gap-1 text-sm font-medium">
-        Название блока
-        <input
-          className={inputClass}
-          value={draft.name}
-          placeholder="Например, «Силовой блок ноябрь»"
-          onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-        />
-      </label>
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem_9rem]">
+        <label className="flex flex-col gap-1 text-sm font-medium">
+          Название блока
+          <input
+            className={inputClass}
+            value={draft.name}
+            placeholder="Например, «Силовой блок ноябрь»"
+            onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium">
+          Длина цикла, дней
+          <select
+            className={inputClass}
+            value={draft.cycleDays}
+            onChange={(event) =>
+              setDraft((current) => {
+                const cycleDays = Number(event.target.value);
+                return {
+                  ...current,
+                  cycleDays,
+                  schedule: resizeCycleDays(current.schedule, cycleDays),
+                };
+              })
+            }
+          >
+            {Array.from({ length: MAX_CYCLE_DAYS }, (_, index) => (
+              <option key={index + 1} value={index + 1}>
+                {index + 1}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium">
+          Число циклов
+          <select
+            className={inputClass}
+            value={draft.weeks.length}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                weeks: resizeBlockWeeks(current.weeks, Number(event.target.value)),
+              }))
+            }
+          >
+            {Array.from({ length: MAX_BLOCK_WEEKS }, (_, index) => (
+              <option key={index + 1} value={index + 1}>
+                {index + 1}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="mb-1 text-sm font-medium">Недели блока</legend>
+        <legend className="mb-1 text-sm font-medium">Циклы</legend>
         <p className="text-sm text-slate-600 dark:text-slate-300">
           В конце блока стоит неделя разгрузки: объём 50%, запас повторов 4. Множитель можно
           изменить. Если убрать эту неделю, при сохранении она добавится снова.
@@ -101,7 +176,7 @@ function BlockForm({ onDone }: { onDone?: () => void }) {
             className="grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-3 sm:grid-cols-6 dark:bg-slate-900"
           >
             <label className="col-span-2 flex flex-col gap-1 text-sm sm:col-span-2">
-              Тип недели {index + 1}
+              Тип цикла {index + 1}
               <select
                 className={inputClass}
                 value={week.weekType}
@@ -163,7 +238,7 @@ function BlockForm({ onDone }: { onDone?: () => void }) {
                   setDraft({ ...draft, weeks: draft.weeks.filter((_, pos) => pos !== index) })
                 }
               >
-                Убрать неделю
+                Убрать цикл
               </button>
             </div>
           </div>
@@ -175,22 +250,22 @@ function BlockForm({ onDone }: { onDone?: () => void }) {
             disabled={draft.weeks.length >= MAX_BLOCK_WEEKS}
             onClick={() => setDraft({ ...draft, weeks: addWeek(draft.weeks) })}
           >
-            Добавить неделю
+            Добавить цикл
           </button>
         </div>
       </fieldset>
 
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 text-sm font-medium">
-          Расписание недели (отсчёт от даты старта блока)
+          Дни цикла. Следующий цикл повторяет их с параметрами своего типа.
         </legend>
-        {DAY_LABELS.map((label, dayIndex) => (
-          <label key={label} className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center">
-            <span className="w-24 shrink-0">{label}</span>
+        {draft.schedule.map((choice, dayIndex) => (
+          <label key={dayLabel(dayIndex)} className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center">
+            <span className="w-24 shrink-0">{dayLabel(dayIndex)}</span>
             <select
               className={`${inputClass} sm:max-w-md`}
-              aria-label={label}
-              value={draft.schedule[dayIndex]}
+              aria-label={dayLabel(dayIndex)}
+              value={choice}
               onChange={(event) => {
                 const schedule = [...draft.schedule];
                 schedule[dayIndex] = event.target.value;
@@ -204,23 +279,33 @@ function BlockForm({ onDone }: { onDone?: () => void }) {
                   {template.name}
                 </option>
               ))}
+              {extraTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
             </select>
           </label>
         ))}
       </fieldset>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" className={primaryButtonClass} disabled={createBlock.isPending}>
+        <button type="submit" className={primaryButtonClass} disabled={saving.isPending}>
           Сохранить блок
         </button>
+        {onCancel && (
+          <button type="button" className={buttonClass} disabled={saving.isPending} onClick={onCancel}>
+            Отмена
+          </button>
+        )}
         {error && (
           <span role="alert" className="text-sm text-red-600">
             {error}
           </span>
         )}
-        {createBlock.isError && (
+        {saving.isError && (
           <span role="alert" className="text-sm text-red-600">
-            {createBlock.error.message}
+            {saving.error.message}
           </span>
         )}
       </div>
@@ -233,13 +318,23 @@ function BlockRow({ block }: { block: Block }) {
   const apply = useApplyBlock();
   const remove = useDeleteBlock();
   const [startDate, setStartDate] = useState(todayIso);
+  const [repeats, setRepeats] = useState(true);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [editing, setEditing] = useState(false);
   const busy = copy.isPending || apply.isPending || remove.isPending;
 
   const handleApply = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    apply.mutate({ id: block.id, startDate });
+    apply.mutate({ id: block.id, startDate, repeats });
   };
+
+  if (editing) {
+    return (
+      <li>
+        <BlockForm block={block} onDone={() => setEditing(false)} onCancel={() => setEditing(false)} />
+      </li>
+    );
+  }
 
   return (
     <li className="flex flex-col gap-3 rounded-xl border border-slate-200 p-4 dark:border-slate-800">
@@ -247,7 +342,7 @@ function BlockRow({ block }: { block: Block }) {
         <div className="flex min-w-0 flex-col gap-1">
           <p className="font-medium">{block.name}</p>
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            {weeksLabel(block.length_weeks)}
+            {blockSpanLabel(block.length_weeks, block.cycle_days || 7)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1">
@@ -268,6 +363,9 @@ function BlockRow({ block }: { block: Block }) {
             </>
           ) : (
             <>
+              <button type="button" className={buttonClass} disabled={busy} onClick={() => setEditing(true)}>
+                Редактировать
+              </button>
               <button
                 type="button"
                 className={buttonClass}
@@ -303,6 +401,15 @@ function BlockRow({ block }: { block: Block }) {
             onChange={(event) => setStartDate(event.target.value)}
           />
         </label>
+        <label className="flex min-h-11 items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            className="size-5"
+            checked={repeats}
+            onChange={(event) => setRepeats(event.target.checked)}
+          />
+          Повторять без конца
+        </label>
         <button type="submit" className={primaryButtonClass} disabled={busy || !startDate}>
           Применить к календарю
         </button>
@@ -319,6 +426,14 @@ function BlockRow({ block }: { block: Block }) {
       </form>
     </li>
   );
+}
+
+function placementWhen(placement: BlockPlacement): string {
+  const span = blockSpanLabel(placement.length_weeks, placement.cycle_days || 7);
+  if (placement.repeats || placement.end_date == null) {
+    return `с ${placement.start_date}, без конца (${span})`;
+  }
+  return `${placement.start_date} — ${placement.end_date} (${span})`;
 }
 
 function DeloadOffer({ placementId }: { placementId: string }) {
@@ -355,16 +470,25 @@ function DeloadOffer({ placementId }: { placementId: string }) {
 
 function PlacementRow({ placement }: { placement: BlockPlacement }) {
   const remove = useRemoveBlockPlacement();
+  const repeat = useRepeatPlacement();
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
       <div className="flex flex-col gap-1">
         <p className="font-medium">{placement.name}</p>
-        <p className="text-sm text-slate-600 dark:text-slate-300">
-          {placement.start_date} — {placement.end_date} ({weeksLabel(placement.length_weeks)})
-        </p>
+        <p className="text-sm text-slate-600 dark:text-slate-300">{placementWhen(placement)}</p>
         <DeloadOffer placementId={placement.id} />
       </div>
       <div className="flex flex-col items-start gap-1">
+        {!placement.repeats && (
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={repeat.isPending || remove.isPending}
+            onClick={() => repeat.mutate(placement.id)}
+          >
+            Продлить без конца
+          </button>
+        )}
         <button
           type="button"
           className={buttonClass}
@@ -392,8 +516,9 @@ export function BlocksPage() {
     <div className="flex max-w-3xl flex-col gap-6">
       <h1 className="text-2xl font-semibold">Блоки периодизации</h1>
       <p className="text-sm text-slate-600 dark:text-slate-300">
-        Блок — расписание недель, которое вы применяете к календарю с даты старта. Тренировки
-        создаются по неделям, поэтому правка блока не меняет уже применённый план.
+        Блок — несколько циклов подряд. Длина цикла задаётся в днях, поэтому сплит может быть
+        короче недели: следующий цикл повторяет те же дни, но со своим типом, например разгрузкой.
+        Правка блока не меняет уже поставленный в календарь план.
       </p>
       <PeriodizationHelp />
 

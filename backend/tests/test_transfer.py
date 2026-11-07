@@ -58,7 +58,7 @@ def fingerprint(document: dict) -> dict:
 
     exercises = sorted(
         (_without_ids(row, {"id"}) for row in document["exercises"]),
-        key=lambda row: (row["name"], row["archived"]),
+        key=lambda row: row["name"],
     )
     templates = []
     for row in document["workout_templates"]:
@@ -177,9 +177,7 @@ async def test_roundtrip_replaces_account_and_keeps_owner_data(client: AsyncClie
     bench = await client.post("/api/exercises", json=BENCH)
     dumbbell = await client.post("/api/exercises", json=DUMBBELL)
     assisted = await client.post("/api/exercises", json=ASSISTED)
-    assert bench.status_code == assisted.status_code == 201
-    archived = await client.post(f"/api/exercises/{assisted.json()['id']}/archive")
-    assert archived.status_code == 200
+    assert bench.status_code == dumbbell.status_code == assisted.status_code == 201
 
     template = await client.post(
         "/api/workouts",
@@ -268,8 +266,7 @@ async def test_roundtrip_replaces_account_and_keeps_owner_data(client: AsyncClie
     )
     names = {row["name"] for row in copy["exercises"]}
     assert "Чужое" not in names
-    archived = {row["name"] for row in copy["exercises"] if row["archived"]}
-    assert archived == {"Подтягивания в гравитроне"}
+    assert "Подтягивания в гравитроне" in names
     copied_bench = next(row["id"] for row in copy["exercises"] if row["name"] == "Жим штанги лёжа")
     hidden = await client.get(f"/api/progression/{copied_bench}")
     assert hidden.status_code == 200

@@ -25,7 +25,6 @@ const BENCH = {
   weight_step: 2.5,
   rep_min: 8,
   rep_max: 12,
-  archived: false,
 };
 
 const ROW = {
@@ -39,7 +38,6 @@ const ROW = {
   weight_step: 5,
   rep_min: 10,
   rep_max: 15,
-  archived: false,
 };
 
 /** Тренировка на сервере: два упражнения, у первого два разных подхода. */
@@ -56,7 +54,6 @@ const WORKOUT = {
         name: BENCH.name,
         primary_muscle: "chest",
         equipment: "barbell",
-        archived: false,
       },
       sets: [
         { id: "s1", rep_min: 3, rep_max: 5, target_rir: 0, rest_seconds: 240 },
@@ -72,7 +69,6 @@ const WORKOUT = {
         name: ROW.name,
         primary_muscle: "back",
         equipment: "cable",
-        archived: false,
       },
       sets: [{ id: "s3", rep_min: 10, rep_max: 15, target_rir: null, rest_seconds: null }],
     },
@@ -120,7 +116,6 @@ function handleRequest(url: string, init?: RequestInit): Response {
               name: exercise?.name,
               primary_muscle: exercise?.primary_muscle,
               equipment: exercise?.equipment,
-              archived: exercise?.archived,
             },
             sets: item.sets.map((set, index) => ({ id: `saved-set-${index}`, ...set })),
           };
@@ -132,11 +127,11 @@ function handleRequest(url: string, init?: RequestInit): Response {
   return jsonResponse({ detail: "Не найдено" }, 404);
 }
 
-function renderPage(path = `/workouts/${WORKOUT.id}`) {
+function renderPage(path = `/workouts/${WORKOUT.id}`, state?: { editing?: boolean }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[path]}>
+      <MemoryRouter initialEntries={[{ pathname: path, state }]}>
         <Routes>
           <Route path="/workouts/:workoutId" element={<WorkoutEditorPage />} />
         </Routes>
@@ -159,6 +154,10 @@ function firstItem() {
   return screen.findByRole("listitem", { name: "Упражнение 1: Жим штанги лёжа" });
 }
 
+async function openEditor(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: "Редактировать" }));
+}
+
 describe("WorkoutEditorPage", () => {
   beforeEach(() => {
     workout = structuredClone(WORKOUT);
@@ -170,23 +169,32 @@ describe("WorkoutEditorPage", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows exercises with their sets", async () => {
+  it("shows exercises with their sets and keeps editing behind a button", async () => {
     renderPage();
     const first = await firstItem();
 
-    expect(within(first).getByLabelText("Жим штанги лёжа, подход 1: повторы от")).toHaveValue("3");
-    expect(within(first).getByLabelText("Жим штанги лёжа, подход 1: RIR")).toHaveValue("0");
-    expect(
-      within(first).getByLabelText("Жим штанги лёжа, подход 2: отдых, секунды"),
-    ).toHaveValue("");
+    expect(within(first).getByText("3–5 повт., RIR 0, отдых 240 с")).toBeInTheDocument();
+    expect(within(first).getByText("8–10 повт.")).toBeInTheDocument();
     expect(
       screen.getByRole("listitem", { name: "Упражнение 2: Тяга верхнего блока" }),
     ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Добавить упражнение" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Сохранить" })).toBeNull();
+    expect(screen.queryByLabelText("Название тренировки")).toBeNull();
+  });
+
+  it("opens a just-created workout ready to add exercises", async () => {
+    renderPage(`/workouts/${WORKOUT.id}`, { editing: true });
+
+    expect(await screen.findByRole("button", { name: "Добавить упражнение" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Название тренировки")).toHaveValue("День A");
+    expect(screen.queryByRole("button", { name: "Редактировать" })).toBeNull();
   });
 
   it("saves edited sets as numbers, with nulls for empty optional fields", async () => {
     const user = userEvent.setup();
     renderPage();
+    await openEditor(user);
     const first = await firstItem();
 
     await user.type(within(first).getByLabelText("Жим штанги лёжа, подход 2: отдых, секунды"), "90");
@@ -215,6 +223,7 @@ describe("WorkoutEditorPage", () => {
   it("moves an exercise down and keeps the new order on save", async () => {
     const user = userEvent.setup();
     renderPage();
+    await openEditor(user);
     await firstItem();
 
     await user.click(screen.getByRole("button", { name: "Опустить Жим штанги лёжа" }));
@@ -233,6 +242,7 @@ describe("WorkoutEditorPage", () => {
   it("adds a set that copies the previous one", async () => {
     const user = userEvent.setup();
     renderPage();
+    await openEditor(user);
     const first = await firstItem();
 
     await user.click(within(first).getByRole("button", { name: "Добавить подход" }));
@@ -247,8 +257,13 @@ describe("WorkoutEditorPage", () => {
   it("adds an exercise found in the reference list with its default rep range", async () => {
     const user = userEvent.setup();
     renderPage();
+    await openEditor(user);
     await firstItem();
 
+    expect(screen.queryByRole("form", { name: "Быстрое создание упражнения" })).toBeNull();
+    expect(screen.queryByLabelText("Поиск в справочнике")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Добавить упражнение" }));
     const picker = await screen.findByRole("list", { name: "Упражнения справочника" });
     expect(within(picker).getAllByRole("listitem")).toHaveLength(2);
 
@@ -271,12 +286,14 @@ describe("WorkoutEditorPage", () => {
       { rep_min: 10, rep_max: 15, target_rir: null, rest_seconds: null },
       { rep_min: 10, rep_max: 15, target_rir: null, rest_seconds: null },
       { rep_min: 10, rep_max: 15, target_rir: null, rest_seconds: null },
+      { rep_min: 10, rep_max: 15, target_rir: null, rest_seconds: null },
     ]);
   });
 
   it("does not send a request while a set has a reversed rep range", async () => {
     const user = userEvent.setup();
     renderPage();
+    await openEditor(user);
     const first = await firstItem();
 
     const from = within(first).getByLabelText("Жим штанги лёжа, подход 2: повторы от");
@@ -293,6 +310,7 @@ describe("WorkoutEditorPage", () => {
   it("keeps at least one set for every exercise", async () => {
     const user = userEvent.setup();
     renderPage();
+    await openEditor(user);
     await firstItem();
     const second = screen.getByRole("listitem", { name: "Упражнение 2: Тяга верхнего блока" });
     const removeOnly = within(second).getByRole("button", {
@@ -308,6 +326,7 @@ describe("WorkoutEditorPage", () => {
   it("clears validation errors once the user edits the form", async () => {
     const user = userEvent.setup();
     renderPage();
+    await openEditor(user);
     const first = await firstItem();
     const from = within(first).getByLabelText("Жим штанги лёжа, подход 2: повторы от");
     await user.clear(from);
@@ -323,6 +342,7 @@ describe("WorkoutEditorPage", () => {
   it("shows unsaved changes and warns before leaving the page", async () => {
     const user = userEvent.setup();
     renderPage();
+    await openEditor(user);
     const first = await firstItem();
     expect(screen.queryByText("Есть несохранённые изменения")).toBeNull();
 

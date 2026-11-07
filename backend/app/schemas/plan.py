@@ -132,8 +132,8 @@ class PlanBlockChange(BaseModel):
     name: str
     start_before: dt.date
     start_after: dt.date
-    end_before: dt.date
-    end_after: dt.date
+    end_before: dt.date | None
+    end_after: dt.date | None
 
 
 class PlanShiftPreview(BaseModel):

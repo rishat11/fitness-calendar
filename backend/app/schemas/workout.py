@@ -61,7 +61,6 @@ class WorkoutExerciseResponse(BaseModel):
     name: str
     primary_muscle: Muscle
     equipment: Equipment
-    archived: bool
 
 
 class WorkoutItemResponse(BaseModel):

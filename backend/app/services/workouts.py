@@ -16,10 +16,6 @@ class UnknownExerciseError(Exception):
     """Упражнение не найдено в справочнике пользователя."""
 
 
-class ArchivedExerciseError(Exception):
-    """Упражнение в архиве: его нельзя добавить в тренировку, но уже стоящее можно оставить."""
-
-
 async def list_templates(db: AsyncSession, user_id: uuid.UUID) -> Sequence[WorkoutTemplate]:
     result = await db.scalars(
         select(WorkoutTemplate)
@@ -50,10 +46,8 @@ async def _owned_exercises(
     db: AsyncSession,
     user_id: uuid.UUID,
     exercise_ids: set[uuid.UUID],
-    *,
-    already_in_template: frozenset[uuid.UUID] = frozenset(),
 ) -> dict[uuid.UUID, Exercise]:
-    """Проверяет владельца и архив. Архивные допустимы, только если уже стоят в тренировке."""
+    """Проверяет, что каждое упражнение есть в справочнике этого пользователя."""
     if not exercise_ids:
         return {}
     result = await db.scalars(
@@ -62,11 +56,6 @@ async def _owned_exercises(
     found = {exercise.id: exercise for exercise in result}
     if len(found) != len(exercise_ids):
         raise UnknownExerciseError
-    if any(
-        exercise.archived and exercise_id not in already_in_template
-        for exercise_id, exercise in found.items()
-    ):
-        raise ArchivedExerciseError
     return found
 
 
@@ -112,13 +101,7 @@ async def replace_template(
     Идентификаторы позиций и подходов при этом меняются. Ссылок на них вне библиотеки нет:
     план и журнал будут хранить снимок (шаг 4), поэтому правка шаблона их не затронет.
     """
-    current = frozenset(item.exercise_id for item in template.items)
-    exercises = await _owned_exercises(
-        db,
-        user_id,
-        {item.exercise_id for item in data.items},
-        already_in_template=current,
-    )
+    exercises = await _owned_exercises(db, user_id, {item.exercise_id for item in data.items})
     template.name = data.name
     template.items = _build_items(data, exercises)
     await db.flush()

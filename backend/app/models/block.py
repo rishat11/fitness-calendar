@@ -3,6 +3,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -21,11 +22,14 @@ from app.db import Base
 
 WEEK_TYPES = ("high_reps", "hypertrophy", "strength", "deload", "free")
 MAX_BLOCK_WEEKS = 12
+# Длина одного цикла в днях. 7 — календарная неделя, меньше — сплит короче недели.
+MAX_CYCLE_DAYS = 14
 
 
 class Block(Base):
-    """Свой блок периодизации (библиотека): название, недели и недельное расписание.
+    """Свой блок периодизации (библиотека): название, циклы и расписание цикла.
 
+    Цикл — это не обязательно календарная неделя: его длина задаётся в днях.
     Блок сам по себе не стоит в календаре. Применение создаёт `BlockPlacement` с датой старта.
     """
 
@@ -34,6 +38,10 @@ class Block(Base):
         CheckConstraint(
             f"length_weeks >= 1 AND length_weeks <= {MAX_BLOCK_WEEKS}",
             name="ck_blocks_length",
+        ),
+        CheckConstraint(
+            f"cycle_days >= 1 AND cycle_days <= {MAX_CYCLE_DAYS}",
+            name="ck_blocks_cycle_days",
         ),
     )
 
@@ -45,6 +53,7 @@ class Block(Base):
     )
     name: Mapped[str] = mapped_column(String(120))
     length_weeks: Mapped[int] = mapped_column(Integer)
+    cycle_days: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -66,7 +75,7 @@ class Block(Base):
 
 
 class BlockWeek(Base):
-    """Неделя блока: тип и параметры, которые накладываются на тренировки расписания."""
+    """Один цикл блока: тип и параметры, которые накладываются на тренировки расписания."""
 
     __tablename__ = "block_weeks"
     __table_args__ = (
@@ -104,12 +113,15 @@ class BlockWeek(Base):
 
 
 class BlockScheduleItem(Base):
-    """День недели блока: тренировка (снимок шаблона) или отдых. Дни без записи свободны."""
+    """День цикла: тренировка (снимок шаблона) или отдых. Дни без записи свободны."""
 
     __tablename__ = "block_schedule_items"
     __table_args__ = (
         UniqueConstraint("block_id", "day_index", name="uq_block_schedule_day"),
-        CheckConstraint("day_index >= 0 AND day_index <= 6", name="ck_block_schedule_day"),
+        CheckConstraint(
+            f"day_index >= 0 AND day_index <= {MAX_CYCLE_DAYS - 1}",
+            name="ck_block_schedule_day",
+        ),
         CheckConstraint("kind IN ('workout', 'rest')", name="ck_block_schedule_kind"),
         CheckConstraint(
             "(kind = 'rest') = (name IS NULL)",
@@ -123,7 +135,7 @@ class BlockScheduleItem(Base):
         ForeignKey("blocks.id", ondelete="CASCADE"),
         index=True,
     )
-    # День от начала недели блока: 0 — первый день недели, 6 — последний.
+    # День от начала цикла: 0 — первый день.
     day_index: Mapped[int] = mapped_column(Integer)
     kind: Mapped[str] = mapped_column(String(8))
     name: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -145,16 +157,25 @@ class BlockPlacement(Base):
     Строки плана на каждый день не создаются: даты вычисляются от `start_date`.
     Строка появляется только у тренировки, которую отметили, перенесли или сдвинули.
     Сдвиг блока целиком меняет `start_date`; `end_date` — граница блока, она едет с
-    тренировками (см. правило в `app.services.plan_shift`).
+    тренировками (см. правило в `app.services.plan_shift`). `repeats` без `end_date`
+    продолжает те же циклы по кругу, пока размещение не уберут.
     Недели и расписание хранятся снимком, поэтому правка библиотеки блок не меняет.
     """
 
     __tablename__ = "block_placements"
     __table_args__ = (
-        CheckConstraint("end_date >= start_date", name="ck_block_placements_dates"),
+        CheckConstraint(
+            "(repeats = false AND end_date IS NOT NULL AND end_date >= start_date) "
+            "OR (repeats = true AND end_date IS NULL)",
+            name="ck_block_placements_dates",
+        ),
         CheckConstraint(
             f"length_weeks >= 1 AND length_weeks <= {MAX_BLOCK_WEEKS}",
             name="ck_block_placements_length",
+        ),
+        CheckConstraint(
+            f"cycle_days >= 1 AND cycle_days <= {MAX_CYCLE_DAYS}",
+            name="ck_block_placements_cycle_days",
         ),
     )
 
@@ -172,9 +193,11 @@ class BlockPlacement(Base):
     )
     name: Mapped[str] = mapped_column(String(120))
     length_weeks: Mapped[int] = mapped_column(Integer)
-    # Календарные даты без часового пояса.
+    cycle_days: Mapped[int] = mapped_column(Integer)
+    repeats: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Календарные даты без часового пояса. У повтора без конца `end_date` пустой.
     start_date: Mapped[date] = mapped_column(Date)
-    end_date: Mapped[date] = mapped_column(Date)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     weeks_snapshot: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
     schedule_snapshot: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(

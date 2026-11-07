@@ -4,9 +4,11 @@ import { type PlanShiftChange, type TodayEntry } from "../api/client";
 import { PlanShiftPanel } from "../components/calendar/PlanShiftPanel";
 import { useMe } from "../features/auth/useAuth";
 import { hideReminder, reminderHidden } from "../features/transfer/reminder";
-import { addDays, parseIsoDate, todayIso } from "../features/calendar/dates";
+import { hideInbodyReminder, inbodyReminderHidden, scanReminderDue } from "../features/inbody/reminder";
+import { useInbodyScans } from "../features/inbody/useInbody";
+import { parseIsoDate, todayIso } from "../features/calendar/dates";
 import { canShift, statusLabel } from "../features/plan/labels";
-import { usePlanRange, usePlanShiftHistory, useToday, useUndoPlanShift } from "../features/plan/usePlan";
+import { usePlanShiftHistory, useToday, useUndoPlanShift } from "../features/plan/usePlan";
 import { ProgressionHintCard } from "../features/progression/ProgressionHint";
 
 const dateFormatter = new Intl.DateTimeFormat("ru-RU", {
@@ -29,15 +31,24 @@ export function TodayPage() {
   const today = todayIso();
   const todayLabel = dateFormatter.format(parseIsoDate(today));
   const { data, isPending, isError } = useToday(today);
-  const { data: nearby = [] } = usePlanRange(addDays(today, -14), addDays(today, 14));
   const { data: shiftHistory } = usePlanShiftHistory();
   const undoShift = useUndoPlanShift();
   const [shiftOpen, setShiftOpen] = useState(false);
   const [shiftId, setShiftId] = useState<string | null>(null);
   const [shiftNotice, setShiftNotice] = useState(false);
   const [reminderDismissed, setReminderDismissed] = useState(false);
+  const [inbodyDismissed, setInbodyDismissed] = useState(false);
+  const scans = useInbodyScans();
   const showReminder = Boolean(
     data?.export_reminder && user && !reminderDismissed && !reminderHidden(user.id),
+  );
+  const latestScan = scans.data && scans.data.length > 0 ? scans.data[scans.data.length - 1].measured_on : null;
+  const showInbodyReminder = Boolean(
+    scans.isSuccess &&
+      user &&
+      !inbodyDismissed &&
+      !inbodyReminderHidden(user.id) &&
+      scanReminderDue(latestScan, today),
   );
 
   const entries = data?.entries ?? [];
@@ -45,13 +56,6 @@ export function TodayPage() {
   const rest = entries.find((entry) => entry.kind === "rest");
   const movable = entries.filter((entry) => canShift(entry));
   const shiftEntry = movable.find((entry) => entry.id === shiftId) ?? movable[0] ?? null;
-  const swapCandidates = nearby.filter(
-    (item) =>
-      item.kind === "workout" &&
-      item.status === "planned" &&
-      !item.is_fixed &&
-      item.id !== shiftEntry?.id,
-  );
 
   const handleShifted = (changes: PlanShiftChange[]) => {
     setShiftOpen(false);
@@ -84,6 +88,37 @@ export function TodayPage() {
               onClick={() => {
                 hideReminder(user.id);
                 setReminderDismissed(true);
+              }}
+            >
+              Не сейчас
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {showInbodyReminder && user && (
+        <aside
+          role="status"
+          aria-label="Замер InBody"
+          className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+        >
+          <p>
+            {latestScan == null
+              ? "Замера InBody ещё нет. Сделайте его и вносите лист вручную."
+              : "Пора повторить замер InBody. Прошло уже две недели."}
+            {" "}
+            Вывод строится по нескольким замерам.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/inbody" className={primaryButtonClass}>
+              Открыть InBody
+            </Link>
+            <button
+              type="button"
+              className={buttonClass}
+              onClick={() => {
+                hideInbodyReminder(user.id);
+                setInbodyDismissed(true);
               }}
             >
               Не сейчас
@@ -217,7 +252,6 @@ export function TodayPage() {
           <PlanShiftPanel
             key={shiftEntry.id}
             entry={shiftEntry}
-            swapCandidates={swapCandidates}
             onApplied={handleShifted}
           />
         )}

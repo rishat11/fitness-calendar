@@ -9,10 +9,13 @@ from app.api.auth import router as auth_router
 from app.api.blocks import router as blocks_router
 from app.api.deps import DbSession
 from app.api.exercises import router as exercises_router
+from app.api.inbody import router as inbody_router
 from app.api.log import router as log_router
+from app.api.nutrition import router as nutrition_router
 from app.api.plan import router as plan_router
 from app.api.profile import router as profile_router
 from app.api.progression import router as progression_router
+from app.api.recommendations import router as recommendations_router
 from app.api.today import router as today_router
 from app.api.transfer import router as transfer_router
 from app.api.volume import router as volume_router
@@ -29,6 +32,9 @@ app.include_router(exercises_router)
 app.include_router(workouts_router)
 app.include_router(plan_router)
 app.include_router(log_router)
+app.include_router(nutrition_router)
+app.include_router(inbody_router)
+app.include_router(recommendations_router)
 app.include_router(progression_router)
 app.include_router(today_router)
 app.include_router(transfer_router)

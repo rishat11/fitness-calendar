@@ -48,7 +48,6 @@ async def test_exercises_require_login(client: AsyncClient) -> None:
     assert (await client.get(f"/api/exercises/{fake_id}")).status_code == 401
     assert (await client.put(f"/api/exercises/{fake_id}", json=BENCH)).status_code == 401
     assert (await client.delete(f"/api/exercises/{fake_id}")).status_code == 401
-    assert (await client.post(f"/api/exercises/{fake_id}/archive")).status_code == 401
 
 
 async def test_create_and_read_exercise(client: AsyncClient) -> None:
@@ -56,7 +55,6 @@ async def test_create_and_read_exercise(client: AsyncClient) -> None:
 
     created = await _create(client, BENCH)
     assert created["name"] == "Жим штанги лёжа"
-    assert created["archived"] is False
     assert created["weight_step"] == 2.5
     assert created["secondary_muscles"] == ["triceps", "shoulders"]
 
@@ -75,7 +73,7 @@ async def test_update_replaces_exercise(client: AsyncClient) -> None:
     body = {**ROW, "weight_unit": "lb", "weight_step": 5}
     response = await client.put(f"/api/exercises/{created['id']}", json=body)
     assert response.status_code == 200
-    assert response.json() == {**body, "id": created["id"], "archived": False}
+    assert response.json() == {**body, "id": created["id"]}
 
     response = await client.get(f"/api/exercises/{created['id']}")
     assert response.json()["primary_muscle"] == "back"
@@ -101,25 +99,6 @@ async def test_delete_exercise(client: AsyncClient) -> None:
 
     response = await client.get(f"/api/exercises/{created['id']}")
     assert response.status_code == 404
-
-
-async def test_archive_hides_exercise_until_restored(client: AsyncClient) -> None:
-    await _register(client, "user@example.com")
-    created = await _create(client, BENCH)
-    exercise_id = created["id"]
-
-    response = await client.post(f"/api/exercises/{exercise_id}/archive")
-    assert response.status_code == 200
-    assert response.json()["archived"] is True
-
-    assert (await client.get("/api/exercises")).json() == []
-    archived_list = (await client.get("/api/exercises", params={"include_archived": True})).json()
-    assert [item["id"] for item in archived_list] == [exercise_id]
-
-    response = await client.post(f"/api/exercises/{exercise_id}/restore")
-    assert response.status_code == 200
-    assert response.json()["archived"] is False
-    assert [item["id"] for item in (await client.get("/api/exercises")).json()] == [exercise_id]
 
 
 async def test_search_matches_name_case_insensitively(client: AsyncClient) -> None:
@@ -195,8 +174,6 @@ async def test_exercises_are_isolated_between_users(client: AsyncClient) -> None
     assert (await client.get(f"/api/exercises/{exercise_id}")).status_code == 404
     assert (await client.put(f"/api/exercises/{exercise_id}", json=ROW)).status_code == 404
     assert (await client.delete(f"/api/exercises/{exercise_id}")).status_code == 404
-    assert (await client.post(f"/api/exercises/{exercise_id}/archive")).status_code == 404
-    assert (await client.post(f"/api/exercises/{exercise_id}/restore")).status_code == 404
 
     # Чужое упражнение осталось нетронутым.
     await client.post("/api/auth/logout")
@@ -205,7 +182,6 @@ async def test_exercises_are_isolated_between_users(client: AsyncClient) -> None
     )
     response = await client.get(f"/api/exercises/{exercise_id}")
     assert response.json()["name"] == "Жим штанги лёжа"
-    assert response.json()["archived"] is False
 
 
 async def test_unknown_exercise_returns_404(client: AsyncClient) -> None:

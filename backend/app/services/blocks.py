@@ -16,7 +16,7 @@ from app.models.block import Block, BlockPlacement, BlockScheduleItem, BlockWeek
 from app.models.plan import STATUS_PLANNED, PlannedWorkout
 from app.schemas.block import BlockInput, BlockScheduleInput, BlockWeekInput
 from app.services.block_calendar import load_placements
-from app.services.block_rules import block_end, build_slots
+from app.services.block_rules import REPEAT_CONFLICT_DAYS, block_end, build_slots
 from app.services.deload import DeloadRoomError, WeekSpec, with_default_deload
 from app.services.plan import _lock_user_plan, list_entries, snapshot_from_template
 from app.services.workouts import COPY_SUFFIX, NAME_MAX, get_template
@@ -106,6 +106,7 @@ async def create_block(db: AsyncSession, user_id: uuid.UUID, data: BlockInput) -
         user_id=user_id,
         name=data.name,
         length_weeks=len(weeks),
+        cycle_days=data.cycle_days,
         weeks=_build_weeks(weeks),
         schedule=schedule,
     )
@@ -121,6 +122,7 @@ async def replace_block(
     schedule = await _build_schedule(db, user_id, data.schedule)
     block.name = data.name
     block.length_weeks = len(data.weeks)
+    block.cycle_days = data.cycle_days
     # Сначала удаляем старые строки: у недель и дней расписания уникальные номера.
     block.weeks.clear()
     block.schedule.clear()
@@ -137,6 +139,7 @@ async def copy_block(db: AsyncSession, user_id: uuid.UUID, source: Block) -> Blo
         user_id=user_id,
         name=source.name[:suffix_room] + COPY_SUFFIX,
         length_weeks=source.length_weeks,
+        cycle_days=source.cycle_days,
         weeks=[
             BlockWeek(
                 position=week.position,
@@ -190,17 +193,34 @@ def _schedule_snapshot(block: Block) -> list[dict]:
     ]
 
 
-async def apply_block(
-    db: AsyncSession, user_id: uuid.UUID, block: Block, start: dt.date
-) -> BlockPlacement:
-    """Ставит блок в календарь с датой старта. Занятый день любого блока отклоняет применение."""
-    await _lock_user_plan(db, user_id)
-    weeks = _weeks_snapshot(block)
-    schedule = _schedule_snapshot(block)
-    end = block_end(start, block.length_weeks)
-    planned_days = {
-        slot.date for slot in build_slots(uuid.uuid4(), start, block.length_weeks, weeks, schedule)
+def _occupied_dates(
+    start: dt.date,
+    length_weeks: int,
+    cycle_days: int,
+    weeks: list[dict],
+    schedule: list[dict],
+    *,
+    repeats: bool,
+    window_end: dt.date,
+) -> set[dt.date]:
+    return {
+        slot.date
+        for slot in build_slots(
+            uuid.uuid4(),
+            start,
+            length_weeks,
+            weeks,
+            schedule,
+            cycle_days,
+            repeats=repeats,
+            window=(start, window_end),
+        )
     }
+
+
+async def _ensure_free(
+    db: AsyncSession, user_id: uuid.UUID, start: dt.date, end: dt.date, planned_days: set[dt.date]
+) -> None:
     existing = await list_entries(db, user_id, start, end)
     busy = sorted({entry.date for entry in existing if entry.date in planned_days})
     if busy:
@@ -208,11 +228,43 @@ async def apply_block(
             f"На {busy[0].isoformat()} уже есть план. Выберите другую дату старта "
             "или освободите дни."
         )
+
+
+async def apply_block(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    block: Block,
+    start: dt.date,
+    *,
+    repeats: bool = False,
+) -> BlockPlacement:
+    """Ставит блок в календарь с датой старта. Занятый день любого блока отклоняет применение."""
+    await _lock_user_plan(db, user_id)
+    weeks = _weeks_snapshot(block)
+    schedule = _schedule_snapshot(block)
+    if repeats:
+        end = None
+        window_end = start + dt.timedelta(days=REPEAT_CONFLICT_DAYS)
+    else:
+        end = block_end(start, block.length_weeks, block.cycle_days)
+        window_end = end
+    planned_days = _occupied_dates(
+        start,
+        block.length_weeks,
+        block.cycle_days,
+        weeks,
+        schedule,
+        repeats=repeats,
+        window_end=window_end,
+    )
+    await _ensure_free(db, user_id, start, window_end, planned_days)
     placement = BlockPlacement(
         user_id=user_id,
         block_id=block.id,
         name=block.name,
         length_weeks=block.length_weeks,
+        cycle_days=block.cycle_days,
+        repeats=repeats,
         start_date=start,
         end_date=end,
         weeks_snapshot=weeks,
@@ -225,6 +277,31 @@ async def apply_block(
 
 async def list_placements(db: AsyncSession, user_id: uuid.UUID) -> list[BlockPlacement]:
     return await load_placements(db, user_id)
+
+
+async def repeat_placement(db: AsyncSession, user_id: uuid.UUID, placement: BlockPlacement) -> None:
+    """Снимает дату конца: те же циклы продолжаются по кругу."""
+    if placement.repeats:
+        return
+    if placement.end_date is None:
+        raise BlockError("У блока уже нет даты конца")
+    await _lock_user_plan(db, user_id)
+    nxt = placement.end_date + dt.timedelta(days=1)
+    window_end = nxt + dt.timedelta(days=REPEAT_CONFLICT_DAYS)
+    planned_days = _occupied_dates(
+        placement.start_date,
+        placement.length_weeks,
+        placement.cycle_days,
+        list(placement.weeks_snapshot),
+        list(placement.schedule_snapshot),
+        repeats=True,
+        window_end=window_end,
+    )
+    planned_days = {day for day in planned_days if day >= nxt}
+    await _ensure_free(db, user_id, nxt, window_end, planned_days)
+    placement.repeats = True
+    placement.end_date = None
+    await db.flush()
 
 
 async def remove_placement(db: AsyncSession, user_id: uuid.UUID, placement: BlockPlacement) -> None:

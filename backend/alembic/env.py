@@ -9,6 +9,8 @@ from app.models import (
     BlockScheduleItem,
     BlockWeek,
     Exercise,
+    InbodyScan,
+    NutritionIntake,
     PerformedItem,
     PerformedWorkout,
     PlanChangeLog,
@@ -33,8 +35,10 @@ target_metadata = User.metadata
 assert Session.metadata is target_metadata
 assert Profile.metadata is target_metadata
 assert Exercise.metadata is target_metadata
+assert InbodyScan.metadata is target_metadata
 assert PlannedWorkout.metadata is target_metadata
 assert PlanChangeLog.metadata is target_metadata
+assert NutritionIntake.metadata is target_metadata
 assert PerformedWorkout.metadata is target_metadata
 assert PerformedItem.metadata is target_metadata
 assert SetLog.metadata is target_metadata

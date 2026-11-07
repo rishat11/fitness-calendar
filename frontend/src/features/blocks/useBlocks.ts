@@ -31,6 +31,14 @@ export function useCreateBlock() {
   });
 }
 
+export function useUpdateBlock() {
+  const invalidate = useInvalidateBlocks();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: BlockInput }) => api.updateBlock(id, body),
+    onSuccess: invalidate,
+  });
+}
+
 export function useCopyBlock() {
   const invalidate = useInvalidateBlocks();
   return useMutation({
@@ -51,8 +59,26 @@ export function useDeleteBlock() {
 export function useApplyBlock() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, startDate }: { id: string; startDate: string }) =>
-      api.applyBlock(id, startDate),
+    mutationFn: ({
+      id,
+      startDate,
+      repeats,
+    }: {
+      id: string;
+      startDate: string;
+      repeats: boolean;
+    }) => api.applyBlock(id, startDate, repeats),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: BLOCKS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEY });
+    },
+  });
+}
+
+export function useRepeatPlacement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.repeatBlockPlacement(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: BLOCKS_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEY });

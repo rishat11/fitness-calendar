@@ -340,8 +340,11 @@ def test_week_type_comes_from_the_block_day_offset() -> None:
     assert week_type_for_offset(0, weeks) == "hypertrophy"
     assert week_type_for_offset(6, weeks) == "hypertrophy"
     assert week_type_for_offset(7, weeks) == "deload"
+    assert week_type_for_offset(5, weeks, cycle_days=6) == "hypertrophy"
+    assert week_type_for_offset(6, weeks, cycle_days=6) == "deload"
     assert week_type_for_offset(14, weeks) == "free"
     assert week_type_for_offset(21, weeks) is None
+    assert week_type_for_offset(21, weeks, repeats=True) == "hypertrophy"
     assert week_type_for_offset(None, weeks) is None
     assert week_type_for_offset(0, ()) is None
     assert week_type_for_offset(0, ({"week_type": "other"},)) is None

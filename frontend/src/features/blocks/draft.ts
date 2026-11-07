@@ -1,6 +1,8 @@
-import type { BlockInput, BlockWeekInput } from "../../api/client";
+import type { Block, BlockInput, BlockWeekInput } from "../../api/client";
 export const MAX_BLOCK_WEEKS = 12;
-export const DAYS_IN_WEEK = 7;
+export const MIN_CYCLE_DAYS = 1;
+export const MAX_CYCLE_DAYS = 14;
+export const DEFAULT_CYCLE_DAYS = 7;
 export const REST_CHOICE = "rest";
 export const EMPTY_CHOICE = "";
 
@@ -14,8 +16,10 @@ export const WEEK_TYPE_LABELS: Record<WeekType, string> = {
   free: "Свободная",
 };
 
-/** День расписания считается от даты старта блока: это день 1…7 недели, а не день недели. */
-export const DAY_LABELS = Array.from({ length: DAYS_IN_WEEK }, (_, index) => `День ${index + 1}`);
+/** Подпись дня цикла: день 1 — первый день после даты старта, не день недели. */
+export function dayLabel(index: number): string {
+  return `День ${index + 1}`;
+}
 
 /** Значения полей хранятся строками, как их вводит пользователь; в API уходят числа. */
 export type WeekDraft = {
@@ -29,8 +33,10 @@ export type WeekDraft = {
 
 export type BlockDraft = {
   name: string;
+  /** Сколько дней в одном цикле. Расписание повторяется для каждого цикла. */
+  cycleDays: number;
   weeks: WeekDraft[];
-  /** Для каждого дня недели: пусто, «отдых» или id тренировки из библиотеки. */
+  /** Для каждого дня цикла: пусто, «отдых» или id тренировки из библиотеки. */
   schedule: string[];
 };
 
@@ -48,6 +54,34 @@ export function emptyWeekDraft(): WeekDraft {
     targetRir: "2",
     volumeMultiplier: "1",
   };
+}
+
+/** Меняет число недель: лишние с конца убираются, новые копируют параметры последней. */
+export function resizeBlockWeeks(weeks: WeekDraft[], count: number): WeekDraft[] {
+  const next = Math.min(MAX_BLOCK_WEEKS, Math.max(1, Math.trunc(count)));
+  if (next === weeks.length) return weeks;
+  if (weeks.length === 0) {
+    return Array.from({ length: next }, () => emptyWeekDraft());
+  }
+  if (next < weeks.length) return weeks.slice(0, next);
+  const source = weeks[weeks.length - 1];
+  const added = Array.from({ length: next - weeks.length }, () => {
+    keyCounter += 1;
+    return { ...source, key: `week-${keyCounter}` };
+  });
+  return [...weeks, ...added];
+}
+
+function clampCycleDays(count: number): number {
+  return Math.min(MAX_CYCLE_DAYS, Math.max(MIN_CYCLE_DAYS, Math.trunc(count)));
+}
+
+/** Меняет число дней в цикле, сохраняя уже выбранные дни с начала. */
+export function resizeCycleDays(schedule: string[], count: number): string[] {
+  const next = clampCycleDays(count);
+  if (next === schedule.length) return schedule;
+  if (next < schedule.length) return schedule.slice(0, next);
+  return [...schedule, ...Array.from({ length: next - schedule.length }, () => EMPTY_CHOICE)];
 }
 
 /** Совпадает с backend: 50% объёма и RIR 4, диапазон повторов как у рабочей недели. */
@@ -69,8 +103,43 @@ export function deloadWeekDraft(): WeekDraft {
 export function emptyBlockDraft(): BlockDraft {
   return {
     name: "",
+    cycleDays: DEFAULT_CYCLE_DAYS,
     weeks: [emptyWeekDraft(), deloadWeekDraft()],
-    schedule: Array.from({ length: DAYS_IN_WEEK }, () => EMPTY_CHOICE),
+    schedule: resizeCycleDays([], DEFAULT_CYCLE_DAYS),
+  };
+}
+
+/** Черновик для правки уже сохранённого блока. Недели идут по номеру, пустые дни остаются пустыми. */
+export function draftFromBlock(block: Block): BlockDraft {
+  const schedule = resizeCycleDays([], block.cycle_days || DEFAULT_CYCLE_DAYS);
+  for (const item of block.schedule) {
+    if (item.day_index < 0 || item.day_index >= schedule.length) continue;
+    if (item.kind === "rest") {
+      schedule[item.day_index] = REST_CHOICE;
+    } else if (item.template_id) {
+      schedule[item.day_index] = item.template_id;
+    }
+  }
+
+  const weeks = [...block.weeks]
+    .sort((left, right) => left.position - right.position)
+    .map((week) => {
+      keyCounter += 1;
+      return {
+        key: `week-${keyCounter}`,
+        weekType: week.week_type,
+        repMin: String(week.rep_min),
+        repMax: String(week.rep_max),
+        targetRir: String(week.target_rir),
+        volumeMultiplier: String(week.volume_multiplier),
+      };
+    });
+
+  return {
+    name: block.name,
+    cycleDays: schedule.length,
+    weeks: weeks.length > 0 ? weeks : [emptyWeekDraft()],
+    schedule,
   };
 }
 
@@ -89,7 +158,7 @@ function parseInteger(value: string): number | null {
 }
 
 function parseWeek(week: WeekDraft, position: number): BlockWeekInput | string {
-  const label = `Неделя ${position}`;
+  const label = `Цикл ${position}`;
   const repMin = parseInteger(week.repMin);
   const repMax = parseInteger(week.repMax);
   const rir = parseInteger(week.targetRir);
@@ -147,5 +216,5 @@ export function draftToInput(draft: BlockDraft): BlockDraftResult {
     return { error: "Выберите хотя бы одну тренировку в расписании" };
   }
 
-  return { input: { name, weeks, schedule } };
+  return { input: { name, cycle_days: draft.cycleDays, weeks, schedule } };
 }

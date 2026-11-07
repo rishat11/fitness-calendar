@@ -5,6 +5,15 @@ export function stepNumber(current: number | null, direction: -1 | 1, step: numb
   return Math.max(0, Math.round(next * 100) / 100);
 }
 
+/** Черновик веса: пусто, целое или дробь с запятой либо точкой, пока человек ещё печатает. */
+export function decimalDraft(raw: string): boolean {
+  return /^\d{0,6}([.,]\d{0,2})?$/.test(raw);
+}
+
+export function formatWeightInput(value: number): string {
+  return String(value).replace(".", ",");
+}
+
 export function parseDecimal(raw: string): number | null {
   const trimmed = raw.trim().replace(",", ".");
   if (!trimmed) return null;
