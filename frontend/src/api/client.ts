@@ -8,6 +8,9 @@ export type User = {
 
 export type Profile = components["schemas"]["ProfileResponse"];
 export type ProfileUpdate = components["schemas"]["ProfileUpdate"];
+export type NutritionIntake = components["schemas"]["IntakeResponse"];
+export type NutritionIntakeUpdate = components["schemas"]["IntakeUpdate"];
+export type NutritionTarget = components["schemas"]["MacroTargetResponse"];
 export type Exercise = components["schemas"]["ExerciseResponse"];
 export type ExerciseInput = components["schemas"]["ExerciseInput"];
 export type ExerciseHistory = components["schemas"]["ExerciseHistory"];
@@ -136,6 +139,16 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+
+  getNutritionIntake: () => request<NutritionIntake>("/api/nutrition/intake"),
+
+  updateNutritionIntake: (body: NutritionIntakeUpdate) =>
+    request<NutritionIntake>("/api/nutrition/intake", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  getNutritionTarget: () => request<NutritionTarget>("/api/nutrition/targets"),
 
   getExercise: (id: string) => request<Exercise>(`/api/exercises/${id}`),
 

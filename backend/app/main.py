@@ -10,6 +10,7 @@ from app.api.blocks import router as blocks_router
 from app.api.deps import DbSession
 from app.api.exercises import router as exercises_router
 from app.api.log import router as log_router
+from app.api.nutrition import router as nutrition_router
 from app.api.plan import router as plan_router
 from app.api.profile import router as profile_router
 from app.api.progression import router as progression_router
@@ -29,6 +30,7 @@ app.include_router(exercises_router)
 app.include_router(workouts_router)
 app.include_router(plan_router)
 app.include_router(log_router)
+app.include_router(nutrition_router)
 app.include_router(progression_router)
 app.include_router(today_router)
 app.include_router(transfer_router)

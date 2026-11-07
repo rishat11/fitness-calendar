@@ -62,7 +62,7 @@ Frontend, каталог `frontend/src/`:
 - `pages/` — экраны. `components/` — общие куски интерфейса.
 - `features/<область>/` — хуки запросов, чистые функции и их тесты рядом с кодом.
 - `api/client.ts` — вызовы API и типы из OpenAPI. `api/schema.d.ts` не править руками.
-- Маршруты собраны в `App.tsx`. Пункты меню — `navigation.ts`. Неготовые разделы показывают «Скоро» (`ComingSoonPage`); питание (`/nutrition`) — такой раздел.
+- Маршруты собраны в `App.tsx`. Пункты меню — `navigation.ts`. Неготовые разделы показывают «Скоро» (`ComingSoonPage`). Питание (`/nutrition`) — текущие граммы БЖУ и заглушка цели до замера InBody.
 
 Новый эндпоинт: схема, сервис, роут в `app/main.py`, тест в `backend/tests`, затем `npm run generate:api` при запущенном API на порту 8000 и коммит обновлённого `schema.d.ts`.
 
