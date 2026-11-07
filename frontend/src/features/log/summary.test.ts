@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatVolume, summarize } from "./summary";
+import { formatRecord, formatVolume, summarize } from "./summary";
 import type { PerformedItem } from "../../api/client";
 
 function item(partial: Partial<PerformedItem> & Pick<PerformedItem, "sets" | "weight_type">): PerformedItem {
@@ -69,5 +69,23 @@ describe("workout summary", () => {
     });
 
     expect(summary).toEqual({ workingSets: 2, volume: 480, unit: "kg" });
+  });
+});
+
+describe("personal record text", () => {
+  const base = {
+    exercise_id: "ex",
+    name: "Жим",
+    load: 100,
+    reps: 8,
+    epley_1rm: null,
+    unit: "kg" as const,
+  };
+
+  it("names weight, reps at the same load, and epley", () => {
+    expect(formatRecord({ ...base, kind: "weight" })).toBe("Жим: рекорд веса 100 кг");
+    expect(formatRecord({ ...base, kind: "reps" })).toBe("Жим: рекорд повторов 8 при 100 кг");
+    expect(formatRecord({ ...base, kind: "epley", epley_1rm: 126.67 })).toBe("Жим: рекорд 1ПМ 126,67 кг");
+    expect(formatRecord({ ...base, kind: "reps", load: null })).toBe("Жим: рекорд повторов 8");
   });
 });

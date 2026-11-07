@@ -85,6 +85,15 @@ class PlanChangeItemExport(_Strict):
     date: dt.date
     status: PlanStatus | None
     position: int = Field(ge=0)
+    # Признаки тренировки блока; в старых файлах их нет.
+    virtual: bool = False
+    materialized: bool = False
+
+
+class PlanChangeBlockExport(_Strict):
+    placement_id: uuid.UUID
+    start: dt.date
+    end: dt.date
 
 
 class PlanChangePayloadExport(_Strict):
@@ -92,6 +101,8 @@ class PlanChangePayloadExport(_Strict):
     days: int | None = None
     resolution: ShiftResolution | None = None
     changes: list[PlanChangeItemExport] = Field(max_length=MAX_PLANNED)
+    # Границы блоков до сдвига; в старых файлах их нет.
+    blocks: list[PlanChangeBlockExport] = Field(default_factory=list, max_length=MAX_PLANNED)
 
 
 class PlanChangeLogExport(_Strict):

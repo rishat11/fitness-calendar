@@ -51,7 +51,20 @@ class PlannedWorkout(Base):
             name="ck_planned_workouts_status_kind",
         ),
         CheckConstraint("kind = 'rest' OR name IS NOT NULL", name="ck_planned_workouts_name"),
+        # Строка блока есть вместе с номером дня; обычная запись — ни того, ни другого.
+        CheckConstraint(
+            "(placement_id IS NULL) = (day_offset IS NULL)",
+            name="ck_planned_workouts_placement",
+        ),
         Index("ix_planned_workouts_user_date", "user_id", "date"),
+        # Одна строка на один день блока: иначе тренировка блока задвоится.
+        Index(
+            "uq_planned_workouts_placement_offset",
+            "placement_id",
+            "day_offset",
+            unique=True,
+            postgresql_where=text("placement_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -69,6 +82,14 @@ class PlannedWorkout(Base):
         nullable=True,
     )
     name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # Строка тренировки блока: какой блок и какой день блока она заменяет (см. BlockPlacement).
+    # NULL у обычной записи. При удалении размещения строка становится обычной записью.
+    placement_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("block_placements.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    day_offset: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Список позиций: exercise (снимок упражнения) и sets (подходы), см. схемы плана.
     snapshot: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list, server_default="[]")
     # NULL только у дня отдыха; у тренировки задаётся явно при создании.

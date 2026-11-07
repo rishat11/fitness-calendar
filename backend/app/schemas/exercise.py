@@ -1,3 +1,4 @@
+import datetime as dt
 import uuid
 from typing import Annotated, Literal, Self
 
@@ -77,3 +78,40 @@ class ExerciseResponse(ExerciseInput):
 
     id: uuid.UUID
     archived: bool
+
+
+class ExerciseHistorySet(BaseModel):
+    """Подход из факта. Вес — как записан, без пересчёта по текущему справочнику."""
+
+    weight: float | None
+    extra_weight: float | None
+    reps: int | None
+    rir: int | None
+    is_warmup: bool
+    is_assisted: bool
+    is_negative: bool
+    weight_unit: WeightUnit
+
+
+class ExerciseHistoryBest(BaseModel):
+    """Лучший рабочий подход завершённой сессии. 1ПМ только для графика, не цель."""
+
+    load: float | None
+    reps: int
+    epley_1rm: float | None
+    weight_unit: WeightUnit | None
+
+
+class ExerciseHistorySession(BaseModel):
+    performed_id: uuid.UUID
+    date: dt.date
+    started_at: dt.datetime
+    notes: list[str]
+    sets: list[ExerciseHistorySet]
+    best: ExerciseHistoryBest | None
+
+
+class ExerciseHistory(BaseModel):
+    """Завершённые тренировки с этим упражнением, новые сверху."""
+
+    sessions: list[ExerciseHistorySession]

@@ -1,3 +1,4 @@
+from app.models.block import Block, BlockPlacement, BlockScheduleItem, BlockWeek
 from app.models.exercise import Exercise
 from app.models.log import PerformedItem, PerformedWorkout, SetLog
 from app.models.plan import PlanChangeLog, PlannedWorkout
@@ -7,6 +8,10 @@ from app.models.user import Session, User
 from app.models.workout import WorkoutTemplate, WorkoutTemplateItem, WorkoutTemplateSet
 
 __all__ = [
+    "Block",
+    "BlockPlacement",
+    "BlockScheduleItem",
+    "BlockWeek",
     "Exercise",
     "PerformedItem",
     "PerformedWorkout",

@@ -8,6 +8,7 @@ from app.api.deps import CurrentUser, DbSession
 from app.models.plan import PlannedWorkout
 from app.models.workout import WorkoutTemplate
 from app.schemas.plan import (
+    PlanBlockChange,
     PlanChangeLogItem,
     PlanCycleCreate,
     PlanEntryCreate,
@@ -30,8 +31,8 @@ from app.services.plan import (
     create_entry,
     create_rest,
     delete_entry,
-    get_entry,
     list_entries,
+    resolve_entry,
     update_entry,
 )
 from app.services.plan_shift import (
@@ -55,7 +56,8 @@ BAD_RANGE = "Некорректный диапазон дат"
 async def _owned_entry_or_404(
     db: DbSession, user_id: uuid.UUID, entry_id: uuid.UUID
 ) -> PlannedWorkout:
-    entry = await get_entry(db, user_id, entry_id)
+    # Тренировка блока без строки в базе сохраняется строкой перед изменением.
+    entry = await resolve_entry(db, user_id, entry_id)
     if entry is None:
         # 404 и для чужих записей: не раскрываем, что такой id существует.
         raise HTTPException(status_code=404, detail=NOT_FOUND)
@@ -138,9 +140,24 @@ def _shift_changes(plan: ShiftPlan) -> list[PlanShiftChange]:
     ]
 
 
+def _block_changes(plan: ShiftPlan) -> list[PlanBlockChange]:
+    return [
+        PlanBlockChange(
+            placement_id=block.placement_id,
+            name=block.name,
+            start_before=block.start_before,
+            start_after=block.start_after,
+            end_before=block.end_before,
+            end_after=block.end_after,
+        )
+        for block in plan.blocks
+    ]
+
+
 def _shift_preview(plan: ShiftPlan) -> PlanShiftPreview:
     return PlanShiftPreview(
         changes=_shift_changes(plan),
+        blocks=_block_changes(plan),
         conflicts=[
             PlanShiftConflict(
                 entry_id=conflict.entry_id,
@@ -197,7 +214,12 @@ async def apply_plan_shift(
     except ShiftConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
     await db.commit()
-    return PlanShiftResult(applied=log_id is not None, changes=_shift_changes(plan), log_id=log_id)
+    return PlanShiftResult(
+        applied=log_id is not None,
+        changes=_shift_changes(plan),
+        log_id=log_id,
+        blocks=_block_changes(plan),
+    )
 
 
 @router.post("/shift/undo", response_model=PlanShiftResult)
@@ -209,7 +231,12 @@ async def undo_plan_shift(user: CurrentUser, db: DbSession) -> PlanShiftResult:
     except ShiftConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
     await db.commit()
-    return PlanShiftResult(applied=True, changes=_shift_changes(plan), log_id=log_id)
+    return PlanShiftResult(
+        applied=True,
+        changes=_shift_changes(plan),
+        log_id=log_id,
+        blocks=_block_changes(plan),
+    )
 
 
 @router.get("/shift/history", response_model=list[PlanChangeLogItem])
@@ -249,6 +276,9 @@ async def update_plan_entry(
 @router.delete("/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_plan_entry(entry_id: uuid.UUID, user: CurrentUser, db: DbSession) -> Response:
     entry = await _owned_entry_or_404(db, user.id, entry_id)
-    await delete_entry(db, entry)
+    try:
+        await delete_entry(db, entry)
+    except PlanConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

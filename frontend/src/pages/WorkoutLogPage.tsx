@@ -30,7 +30,8 @@ import {
   readOutbox,
   type OutboxOp,
 } from "../features/log/outbox";
-import { formatVolume, moveFocus, summarize } from "../features/log/summary";
+import { formatRecord, formatVolume, moveFocus, summarize } from "../features/log/summary";
+import { RestTimerPanel, type RestTimerHandle } from "../features/log/RestTimerPanel";
 import { useWakeLock } from "../features/log/useWakeLock";
 import { ProgressionHintCard } from "../features/progression/ProgressionHint";
 
@@ -97,6 +98,29 @@ function LogEditor({ initial }: { initial: PerformedWorkout }) {
   const timer = useRef<number | null>(null);
   const { data: exercises = [] } = useExercises({ includeArchived: false, search: "" });
   useWakeLock(true);
+  const restRef = useRef<RestTimerHandle>(null);
+  // Подходы, по которым таймер уже отработал. Уже сохранённые с сервера не запускают его при открытии.
+  const [timedSets] = useState(
+    () =>
+      new Set(
+        initial.items
+          .flatMap((item) => item.sets)
+          .filter((logged) => logged.reps != null && !logged.is_warmup)
+          .map((logged) => logged.id),
+      ),
+  );
+
+  /** Таймер стартует после подтверждённого сервером сохранения рабочего подхода с повторами. */
+  const startRestAfterSave = (setId: string) => {
+    if (timedSets.has(setId)) return;
+    const owner = workoutRef.current.items.find((item) => item.sets.some((logged) => logged.id === setId));
+    if (!owner) return;
+    const index = owner.sets.findIndex((logged) => logged.id === setId);
+    const logged = owner.sets[index];
+    if (logged.is_warmup || logged.reps == null) return;
+    timedSets.add(setId);
+    restRef.current?.autoStart(owner.targets[index]?.rest_seconds ?? null);
+  };
 
   const flushRef = useRef<() => Promise<void>>(async () => {});
 
@@ -135,6 +159,8 @@ function LogEditor({ initial }: { initial: PerformedWorkout }) {
             commit(next);
             void queryClient.invalidateQueries({ queryKey: ["plan"] });
           }
+          const savedSet = /^(?:set|add):(.+)$/.exec(op.dedupeKey);
+          if (savedSet) startRestAfterSave(savedSet[1]);
         });
         setError(null);
         setSaveState(readOutbox().length === 0 ? "saved" : "pending");
@@ -312,6 +338,7 @@ function LogEditor({ initial }: { initial: PerformedWorkout }) {
   };
 
   const totals = summarize(workout);
+  const records = workout.finished_at ? (workout.summary.records ?? []) : [];
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
@@ -327,10 +354,22 @@ function LogEditor({ initial }: { initial: PerformedWorkout }) {
         <p className="text-sm">
           Рабочих подходов: {totals.workingSets}. Объём: {formatVolume(totals.volume, totals.unit)}
         </p>
+        {records.length > 0 && (
+          <section className="flex flex-col gap-1 text-sm">
+            <h2 className="font-medium">Личные рекорды</h2>
+            <ul className="flex flex-col gap-1">
+              {records.map((record) => (
+                <li key={`${record.exercise_id}-${record.kind}`}>{formatRecord(record)}</li>
+              ))}
+            </ul>
+          </section>
+        )}
         {workout.finished_at && (
           <p className="text-sm text-slate-600 dark:text-slate-300">Тренировка завершена</p>
         )}
       </header>
+
+      {!workout.finished_at && <RestTimerPanel ref={restRef} />}
 
       {error && (
         <p role="alert" className="text-sm text-red-600">
@@ -420,14 +459,15 @@ function LogEditor({ initial }: { initial: PerformedWorkout }) {
       <button
         type="button"
         className={primaryButtonClass}
-        onClick={() =>
+        onClick={() => {
+          restRef.current?.reset();
           remember({
             dedupeKey: "finish",
             method: "POST",
             path: `/api/performed/${workout.id}/finish`,
             body: null,
-          })
-        }
+          });
+        }}
       >
         Завершить
       </button>
@@ -499,7 +539,17 @@ function ExerciseBlock({
           if (result.set_id && result.weight != null) onAppliedWeight(result.set_id, result.weight);
         }}
       />
-      <h2 className="text-lg font-medium">{item.name}</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-medium">{item.name}</h2>
+        {item.exercise_id && (
+          <Link
+            to={`/exercises/${item.exercise_id}`}
+            className={`${buttonClass} inline-flex items-center`}
+          >
+            Карточка
+          </Link>
+        )}
+      </div>
       <label className="flex flex-col gap-1 text-sm font-medium">
         Заменить упражнение
         <select

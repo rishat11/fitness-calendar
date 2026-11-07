@@ -1,5 +1,6 @@
 import datetime as dt
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -80,12 +81,33 @@ class NoteWrite(BaseModel):
         return _blank_to_none(value)
 
 
+class PersonalRecord(BaseModel):
+    """Рекорд, который подходы этой тренировки побили относительно более ранних сессий.
+
+    weight — максимальная нагрузка, reps — повторы при той же нагрузке,
+    epley — расчётный 1ПМ. Повтор старого значения без улучшения сюда не входит.
+    """
+
+    kind: Literal["weight", "reps", "epley"]
+    exercise_id: uuid.UUID
+    name: str
+    load: float | None
+    reps: int
+    epley_1rm: float | None
+    unit: WeightUnit | None
+
+
 class PerformedSummary(BaseModel):
-    """Рабочие подходы: все, кроме разминки, у которых указаны повторы."""
+    """Рабочие подходы: все, кроме разминки, у которых указаны повторы.
+
+    records пуст, пока тренировка не завершена. После завершения там только
+    побитые рекорды, по одному виду на упражнение.
+    """
 
     working_sets: int
     volume: float
     unit: WeightUnit | None
+    records: list[PersonalRecord] = Field(default_factory=list)
 
 
 class PerformedItemResponse(BaseModel):

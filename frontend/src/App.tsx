@@ -8,14 +8,24 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { TodayPage } from "./pages/TodayPage";
 import { ComingSoonPage } from "./pages/ComingSoonPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { ExerciseCardPage } from "./pages/ExerciseCardPage";
 import { ExercisesPage } from "./pages/ExercisesPage";
 import { WorkoutsPage } from "./pages/WorkoutsPage";
 import { WorkoutEditorPage } from "./pages/WorkoutEditorPage";
 import { CalendarPage } from "./pages/CalendarPage";
 import { WorkoutLogPage } from "./pages/WorkoutLogPage";
+import { VolumePage } from "./pages/VolumePage";
+import { BlocksPage } from "./pages/BlocksPage";
 
 /** Разделы с реальными экранами; остальные пункты меню пока показывают «Скоро». */
-const IMPLEMENTED_ROUTES = new Set(["/", "/calendar", "/exercises", "/workouts"]);
+const IMPLEMENTED_ROUTES = new Set([
+  "/",
+  "/calendar",
+  "/exercises",
+  "/workouts",
+  "/blocks",
+  "/volume",
+]);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,8 +56,11 @@ export function App() {
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="log/:plannedId" element={<WorkoutLogPage />} />
               <Route path="exercises" element={<ExercisesPage />} />
+              <Route path="exercises/:exerciseId" element={<ExerciseCardPage />} />
               <Route path="workouts" element={<WorkoutsPage />} />
               <Route path="workouts/:workoutId" element={<WorkoutEditorPage />} />
+              <Route path="blocks" element={<BlocksPage />} />
+              <Route path="volume" element={<VolumePage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Route>

@@ -32,8 +32,7 @@ MESSAGE_INCREASE = (
 )
 MESSAGE_CONTINUE = "Продолжайте, добавляйте повторы."
 MESSAGE_STAGNATION = (
-    "Проверьте сон и питание, уменьшите вес на 5–10%, "
-    "рассмотрите разгрузку или замену упражнения."
+    "Проверьте сон и питание, уменьшите вес на 5–10%, рассмотрите разгрузку или замену упражнения."
 )
 
 # Верхняя граница поля веса в логе. Выше этого «принять» нечего записывать.
@@ -124,11 +123,11 @@ def _load(logged: SetInput) -> float | None:
     return round(value, 4)
 
 
-def _qualifying(session: SessionInput) -> list[SetInput]:
+def qualifying_sets(sets: Sequence[SetInput]) -> list[SetInput]:
     """Рабочий подход: не разминка, не «с помощью», не негативы, заполнены вес и повторы."""
     rows = [
         logged
-        for logged in session.sets
+        for logged in sets
         if not logged.is_warmup
         and not logged.is_assisted
         and not logged.is_negative
@@ -136,6 +135,10 @@ def _qualifying(session: SessionInput) -> list[SetInput]:
         and logged.reps is not None
     ]
     return sorted(rows, key=lambda logged: logged.position)
+
+
+def _qualifying(session: SessionInput) -> list[SetInput]:
+    return qualifying_sets(session.sets)
 
 
 def _target_for(
@@ -171,16 +174,34 @@ def _at_top(
     return True
 
 
-def _best(sets: Sequence[SetInput]) -> SessionBest:
+def _winner(sets: Sequence[SetInput]) -> SetInput:
     def sort_key(logged: SetInput) -> tuple[bool, float, int]:
         load = _load(logged)
         return (load is not None, load if load is not None else 0.0, logged.reps or 0)
 
-    winner = max(sets, key=sort_key)
+    return max(sets, key=sort_key)
+
+
+def _best(sets: Sequence[SetInput]) -> SessionBest:
+    winner = _winner(sets)
     load = _load(winner)
     reps = winner.reps or 0
+    # Формула Эпли. Для гравитрона нагрузки нет, поэтому 1ПМ не считается.
     epley = None if load is None else round(load * (1 + reps / 30), 2)
     return SessionBest(load=load, reps=reps, epley_1rm=epley)
+
+
+def best_working_point(sets: Sequence[SetInput]) -> tuple[SetInput, SessionBest] | None:
+    """Лучший рабочий подход сессии. Те же отборы, что у подсказки прогрессии.
+
+    Возвращает сам подход и его нагрузку, повторы и расчётный 1ПМ.
+    Пустой список и сессия только из разминки, помощи или негативов дают None.
+    """
+    rows = qualifying_sets(sets)
+    if not rows:
+        return None
+    winner = _winner(rows)
+    return winner, _best(rows)
 
 
 def _suggested_weight(logged: SetInput) -> float | None:

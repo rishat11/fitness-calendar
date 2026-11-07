@@ -44,11 +44,13 @@ def _fail(exc: LogError) -> None:
 async def start_performed(
     body: PerformedStart, user: CurrentUser, db: DbSession, response: Response
 ) -> PerformedWorkoutResponse:
+    # id читаем до сервиса: перезагрузка лога сбрасывает все объекты сессии.
+    user_id = user.id
     try:
-        workout, created = await start_from_plan(db, user.id, body.planned_id)
+        workout, created = await start_from_plan(db, user_id, body.planned_id)
     except LogError as exc:
         _fail(exc)
-    payload = to_response(workout)
+    payload = await to_response(db, user_id, workout)
     await db.commit()
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
     return payload
@@ -71,11 +73,12 @@ async def exercise_previous(
 async def patch_performed_note(
     performed_id: uuid.UUID, body: NoteWrite, user: CurrentUser, db: DbSession
 ) -> PerformedWorkoutResponse:
+    user_id = user.id
     try:
-        workout = await update_note(db, user.id, performed_id, body)
+        workout = await update_note(db, user_id, performed_id, body)
     except LogError as exc:
         _fail(exc)
-    payload = to_response(workout)
+    payload = await to_response(db, user_id, workout)
     await db.commit()
     return payload
 
@@ -84,11 +87,12 @@ async def patch_performed_note(
 async def finish_performed(
     performed_id: uuid.UUID, user: CurrentUser, db: DbSession
 ) -> PerformedWorkoutResponse:
+    user_id = user.id
     try:
-        workout = await finish(db, user.id, performed_id)
+        workout = await finish(db, user_id, performed_id)
     except LogError as exc:
         _fail(exc)
-    payload = to_response(workout)
+    payload = await to_response(db, user_id, workout)
     await db.commit()
     return payload
 
@@ -97,11 +101,12 @@ async def finish_performed(
 async def add_performed_item(
     performed_id: uuid.UUID, body: ItemCreate, user: CurrentUser, db: DbSession, response: Response
 ) -> PerformedWorkoutResponse:
+    user_id = user.id
     try:
-        workout, created = await add_item(db, user.id, performed_id, body)
+        workout, created = await add_item(db, user_id, performed_id, body)
     except LogError as exc:
         _fail(exc)
-    payload = to_response(workout)
+    payload = await to_response(db, user_id, workout)
     await db.commit()
     response.status_code = status.HTTP_201_CREATED if created else status.HTTP_200_OK
     return payload
@@ -115,11 +120,12 @@ async def patch_item_note(
     user: CurrentUser,
     db: DbSession,
 ) -> PerformedWorkoutResponse:
+    user_id = user.id
     try:
-        workout = await update_item_note(db, user.id, performed_id, item_id, body)
+        workout = await update_item_note(db, user_id, performed_id, item_id, body)
     except LogError as exc:
         _fail(exc)
-    payload = to_response(workout)
+    payload = await to_response(db, user_id, workout)
     await db.commit()
     return payload
 
@@ -132,11 +138,12 @@ async def put_item_exercise(
     user: CurrentUser,
     db: DbSession,
 ) -> PerformedWorkoutResponse:
+    user_id = user.id
     try:
-        workout = await replace_exercise(db, user.id, performed_id, item_id, body)
+        workout = await replace_exercise(db, user_id, performed_id, item_id, body)
     except LogError as exc:
         _fail(exc)
-    payload = to_response(workout)
+    payload = await to_response(db, user_id, workout)
     await db.commit()
     return payload
 

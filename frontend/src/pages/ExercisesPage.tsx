@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { type Exercise } from "../api/client";
 import { ExerciseForm } from "../components/ExerciseForm";
 import { QuickExerciseForm } from "../components/QuickExerciseForm";
@@ -30,14 +31,19 @@ function ExerciseRow({ exercise, onEdit }: { exercise: Exercise; onEdit: () => v
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
       <div className="flex min-w-0 flex-col gap-1">
-        <p className="font-medium">
-          {exercise.name}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to={`/exercises/${exercise.id}`}
+            className="inline-flex min-h-11 items-center font-medium hover:underline"
+          >
+            {exercise.name}
+          </Link>
           {exercise.archived && (
-            <span className="ml-2 rounded bg-slate-200 px-2 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <span className="rounded bg-slate-200 px-2 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               В архиве
             </span>
           )}
-        </p>
+        </div>
         <p className="text-sm text-slate-600 dark:text-slate-300">{describeExercise(exercise)}</p>
         <p className="text-sm text-slate-600 dark:text-slate-300">
           {labelFor(WEIGHT_TYPE_OPTIONS, exercise.weight_type)} · повторы {exercise.rep_min}–

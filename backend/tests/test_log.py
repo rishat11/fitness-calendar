@@ -1,6 +1,9 @@
 import uuid
 
+from app.models.log import PerformedWorkout
+from app.models.user import User
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
 
 BENCH = {
     "name": "Жим штанги лёжа",
@@ -313,3 +316,89 @@ async def test_deleting_plan_entry_keeps_the_log(client: AsyncClient) -> None:
     )
     assert saved.status_code == 200
     assert saved.json()["weight"] == 55
+
+
+async def _workout_with_set(
+    client: AsyncClient, exercise_id: str, day: str, **values: object
+) -> dict:
+    planned = await _plan_workout(client, exercise_id, day)
+    _, workout = await _start(client, planned["id"])
+    logged = workout["items"][0]["sets"][0]
+    saved = await client.put(
+        f"/api/performed/{workout['id']}/sets/{logged['id']}",
+        json=_values(**values),
+    )
+    assert saved.status_code == 200, saved.text
+    return workout
+
+
+async def _finish(client: AsyncClient, workout_id: str) -> dict:
+    finished = await client.post(f"/api/performed/{workout_id}/finish")
+    assert finished.status_code == 200, finished.text
+    return finished.json()
+
+
+async def test_finish_lists_first_personal_records(client: AsyncClient) -> None:
+    await _register(client, "records-first@example.com")
+    exercise_id = await _exercise(client)
+    workout = await _workout_with_set(client, exercise_id, "2026-11-01", weight=100, reps=5)
+
+    opened = await client.post("/api/performed", json={"planned_id": workout["planned_id"]})
+    assert opened.status_code == 200, opened.text
+    assert opened.json()["summary"]["records"] == []
+
+    body = await _finish(client, workout["id"])
+    records = body["summary"]["records"]
+    assert [row["kind"] for row in records] == ["weight", "reps", "epley"]
+    assert records[0]["name"] == "Жим штанги лёжа"
+    assert records[0]["load"] == 100
+    assert records[0]["unit"] == "kg"
+    assert records[1]["reps"] == 5
+    assert records[1]["load"] == 100
+    assert records[2]["epley_1rm"] == round(100 * (1 + 5 / 30), 2)
+
+    heavier = await _workout_with_set(client, exercise_id, "2026-11-08", weight=120, reps=3)
+    await _finish(client, heavier["id"])
+    again = await client.post("/api/performed", json={"planned_id": workout["planned_id"]})
+    assert again.status_code == 200, again.text
+    assert again.json()["summary"]["records"][0]["load"] == 100
+
+
+async def test_unfinished_earlier_session_still_counts(client: AsyncClient) -> None:
+    await _register(client, "records-open@example.com")
+    exercise_id = await _exercise(client)
+    await _workout_with_set(client, exercise_id, "2026-11-01", weight=100, reps=5)
+    later = await _workout_with_set(client, exercise_id, "2026-11-03", weight=80, reps=5)
+
+    body = await _finish(client, later["id"])
+
+    assert body["summary"]["records"] == []
+
+
+async def test_other_user_history_does_not_change_records(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    await _register(client, "records-owner@example.com")
+    exercise_id = await _exercise(client)
+    await _workout_with_set(client, exercise_id, "2026-11-01", weight=100, reps=5)
+    owned = await _finish(
+        client,
+        (await _workout_with_set(client, exercise_id, "2026-11-02", weight=250, reps=1))["id"],
+    )
+
+    stranger = User(email=f"stranger-{uuid.uuid4()}@example.com", password_hash="x")
+    db_session.add(stranger)
+    await db_session.flush()
+    moved = await db_session.get(PerformedWorkout, uuid.UUID(owned["id"]))
+    assert moved is not None
+    moved.user_id = stranger.id
+    await db_session.flush()
+    db_session.expire_all()
+
+    later = await _finish(
+        client,
+        (await _workout_with_set(client, exercise_id, "2026-11-03", weight=110, reps=3))["id"],
+    )
+    records = later["summary"]["records"]
+    assert [row["kind"] for row in records] == ["weight", "epley"]
+    assert records[0]["load"] == 110

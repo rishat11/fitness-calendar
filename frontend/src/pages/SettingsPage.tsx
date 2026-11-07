@@ -83,7 +83,6 @@ function ProfileForm({ profile }: { profile: Profile }) {
   const formRef = useRef(form);
   const saveTimer = useRef<number | null>(null);
   const saveGeneration = useRef(0);
-  formRef.current = form;
 
   useEffect(() => {
     return () => {

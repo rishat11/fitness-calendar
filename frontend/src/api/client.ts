@@ -10,6 +10,13 @@ export type Profile = components["schemas"]["ProfileResponse"];
 export type ProfileUpdate = components["schemas"]["ProfileUpdate"];
 export type Exercise = components["schemas"]["ExerciseResponse"];
 export type ExerciseInput = components["schemas"]["ExerciseInput"];
+export type ExerciseHistory = components["schemas"]["ExerciseHistory"];
+export type ExerciseHistorySession = components["schemas"]["ExerciseHistorySession"];
+export type ExerciseHistorySet = components["schemas"]["ExerciseHistorySet"];
+export type ExerciseHistoryBest = components["schemas"]["ExerciseHistoryBest"];
+
+export type MuscleVolume = components["schemas"]["VolumeWeekResponse"];
+export type MuscleVolumeGroup = components["schemas"]["MuscleVolumeGroup"];
 
 export type Workout = components["schemas"]["WorkoutTemplateResponse"];
 export type WorkoutInput = components["schemas"]["WorkoutTemplateInput"];
@@ -27,6 +34,12 @@ export type PlanShiftChange = components["schemas"]["PlanShiftChange"];
 export type PlanChangeLogItem = components["schemas"]["PlanChangeLogItem"];
 export type TodayView = components["schemas"]["TodayResponse"];
 export type TodayEntry = components["schemas"]["TodayEntryResponse"];
+
+export type Block = components["schemas"]["BlockResponse"];
+export type BlockInput = components["schemas"]["BlockInput"];
+export type BlockWeekInput = components["schemas"]["BlockWeekInput"];
+export type BlockScheduleInput = components["schemas"]["BlockScheduleInput"];
+export type BlockPlacement = components["schemas"]["PlacementResponse"];
 
 export type PerformedWorkout = components["schemas"]["PerformedWorkoutResponse"];
 export type PerformedItem = components["schemas"]["PerformedItemResponse"];
@@ -123,6 +136,10 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+
+  getExercise: (id: string) => request<Exercise>(`/api/exercises/${id}`),
+
+  exerciseHistory: (id: string) => request<ExerciseHistory>(`/api/exercises/${id}/history`),
 
   listExercises: ({ includeArchived = false, q }: ExerciseListParams = {}) => {
     const search = new URLSearchParams();
@@ -241,6 +258,34 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ action, performed_id: performedId ?? null }),
     }),
+
+  muscleVolume: (day: string) => {
+    const search = new URLSearchParams({ day });
+    return request<MuscleVolume>(`/api/volume/muscles?${search.toString()}`);
+  },
+
+  listBlocks: () => request<Block[]>("/api/blocks"),
+
+  createBlock: (body: BlockInput) =>
+    request<Block>("/api/blocks", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  copyBlock: (id: string) => request<Block>(`/api/blocks/${id}/copy`, { method: "POST" }),
+
+  deleteBlock: (id: string) => request<void>(`/api/blocks/${id}`, { method: "DELETE" }),
+
+  applyBlock: (id: string, startDate: string) =>
+    request<BlockPlacement>(`/api/blocks/${id}/apply`, {
+      method: "POST",
+      body: JSON.stringify({ start_date: startDate }),
+    }),
+
+  listBlockPlacements: () => request<BlockPlacement[]>("/api/blocks/placements"),
+
+  removeBlockPlacement: (id: string) =>
+    request<void>(`/api/blocks/placements/${id}`, { method: "DELETE" }),
 
   exportData: () => request<ExportDocument>("/api/export"),
 

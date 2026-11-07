@@ -34,9 +34,7 @@ async def _register(client: AsyncClient, email: str) -> None:
 
 
 async def _login(client: AsyncClient, email: str) -> None:
-    response = await client.post(
-        "/api/auth/login", json={"email": email, "password": "password1"}
-    )
+    response = await client.post("/api/auth/login", json={"email": email, "password": "password1"})
     assert response.status_code == 200
 
 
@@ -231,9 +229,7 @@ async def test_roundtrip_replaces_account_and_keeps_owner_data(client: AsyncClie
     hint = await client.get(f"/api/progression/{bench_id}")
     assert hint.status_code == 200, hint.text
     assert hint.json()["status"] == "increase_weight"
-    rejected = await client.post(
-        f"/api/progression/{bench_id}/decision", json={"action": "reject"}
-    )
+    rejected = await client.post(f"/api/progression/{bench_id}/decision", json={"action": "reject"})
     assert rejected.status_code == 200, rejected.text
 
     exported = await client.get("/api/export")
@@ -333,9 +329,7 @@ async def test_invalid_import_leaves_data_in_place(client: AsyncClient) -> None:
 
     unknown = dict(exported.json())
     unknown["format_version"] = 99
-    rejected_version = await client.post(
-        "/api/import", params={"mode": "replace"}, json=unknown
-    )
+    rejected_version = await client.post("/api/import", params={"mode": "replace"}, json=unknown)
     assert rejected_version.status_code == 422
     missing_mode = await client.post("/api/import", json=exported.json())
     assert missing_mode.status_code == 422

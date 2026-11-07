@@ -125,18 +125,31 @@ class PlanShiftConflict(BaseModel):
     message: str
 
 
+class PlanBlockChange(BaseModel):
+    """Границы блока периодизации до и после сдвига (тренировки блока едут вместе с ними)."""
+
+    placement_id: uuid.UUID
+    name: str
+    start_before: dt.date
+    start_after: dt.date
+    end_before: dt.date
+    end_after: dt.date
+
+
 class PlanShiftPreview(BaseModel):
     """Прямой сдвиг и, если день занят, варианты: цепочка дальше, две в день, отмена."""
 
     changes: list[PlanShiftChange]
     conflicts: list[PlanShiftConflict]
     resolutions: list[ShiftResolution]
+    blocks: list[PlanBlockChange] = []
 
 
 class PlanShiftResult(BaseModel):
     applied: bool
     changes: list[PlanShiftChange]
     log_id: uuid.UUID | None
+    blocks: list[PlanBlockChange] = []
 
 
 class PlanChangeLogItem(BaseModel):
@@ -157,6 +170,8 @@ class PlanEntryResponse(BaseModel):
     is_fixed: bool
     position: int
     template_id: uuid.UUID | None
+    # Тренировка из блока периодизации: null у обычной записи.
+    placement_id: uuid.UUID | None = None
     name: str | None
     items: list[PlanItemSnapshot]
 

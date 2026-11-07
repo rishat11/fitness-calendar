@@ -125,6 +125,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/exercises/{exercise_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Exercise History */
+        get: operations["read_exercise_history_api_exercises__exercise_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/exercises/{exercise_id}": {
         parameters: {
             query?: never;
@@ -635,6 +652,128 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/volume/muscles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Muscle Volume */
+        get: operations["read_muscle_volume_api_volume_muscles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List User Blocks */
+        get: operations["list_user_blocks_api_blocks_get"];
+        put?: never;
+        /** Create User Block */
+        post: operations["create_user_block_api_blocks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blocks/placements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List User Placements */
+        get: operations["list_user_placements_api_blocks_placements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blocks/placements/{placement_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove User Placement */
+        delete: operations["remove_user_placement_api_blocks_placements__placement_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blocks/{block_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get User Block */
+        get: operations["get_user_block_api_blocks__block_id__get"];
+        /** Update User Block */
+        put: operations["update_user_block_api_blocks__block_id__put"];
+        post?: never;
+        /** Delete User Block */
+        delete: operations["delete_user_block_api_blocks__block_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blocks/{block_id}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy User Block */
+        post: operations["copy_user_block_api_blocks__block_id__copy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blocks/{block_id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply User Block */
+        post: operations["apply_user_block_api_blocks__block_id__apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -656,6 +795,112 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * BlockApplyRequest
+         * @description Дата, с которой блок начинается: первый день первой недели.
+         */
+        BlockApplyRequest: {
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+        };
+        /**
+         * BlockInput
+         * @description Полная замена блока: название, недели и расписание дней недели.
+         */
+        BlockInput: {
+            /** Name */
+            name: string;
+            /** Weeks */
+            weeks: components["schemas"]["BlockWeekInput"][];
+            /** Schedule */
+            schedule: components["schemas"]["BlockScheduleInput"][];
+        };
+        /** BlockResponse */
+        BlockResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Length Weeks */
+            length_weeks: number;
+            /** Weeks */
+            weeks: components["schemas"]["BlockWeekResponse"][];
+            /** Schedule */
+            schedule: components["schemas"]["BlockScheduleResponse"][];
+        };
+        /**
+         * BlockScheduleInput
+         * @description День недели блока: тренировка из библиотеки или отдых. Пустой день не задаётся.
+         */
+        BlockScheduleInput: {
+            /** Day Index */
+            day_index: number;
+            /**
+             * Kind
+             * @default workout
+             * @enum {string}
+             */
+            kind: "workout" | "rest";
+            /** Template Id */
+            template_id?: string | null;
+        };
+        /** BlockScheduleResponse */
+        BlockScheduleResponse: {
+            /** Day Index */
+            day_index: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "workout" | "rest";
+            /** Name */
+            name: string | null;
+            /** Template Id */
+            template_id: string | null;
+        };
+        /**
+         * BlockWeekInput
+         * @description Параметры одной недели блока. Накладываются на все тренировки этой недели.
+         */
+        BlockWeekInput: {
+            /**
+             * Week Type
+             * @enum {string}
+             */
+            week_type: "high_reps" | "hypertrophy" | "strength" | "deload" | "free";
+            /** Rep Min */
+            rep_min: number;
+            /** Rep Max */
+            rep_max: number;
+            /** Target Rir */
+            target_rir: number;
+            /** Volume Multiplier */
+            volume_multiplier: number;
+        };
+        /** BlockWeekResponse */
+        BlockWeekResponse: {
+            /** Position */
+            position: number;
+            /**
+             * Week Type
+             * @enum {string}
+             */
+            week_type: "high_reps" | "hypertrophy" | "strength" | "deload" | "free";
+            /** Rep Min */
+            rep_min: number;
+            /** Rep Max */
+            rep_max: number;
+            /** Target Rir */
+            target_rir: number;
+            /** Volume Multiplier */
+            volume_multiplier: number;
+        };
         /** DeleteAccountRequest */
         DeleteAccountRequest: {
             /** Password */
@@ -700,6 +945,76 @@ export interface components {
             id: string;
             /** Archived */
             archived: boolean;
+        };
+        /**
+         * ExerciseHistory
+         * @description Завершённые тренировки с этим упражнением, новые сверху.
+         */
+        ExerciseHistory: {
+            /** Sessions */
+            sessions: components["schemas"]["ExerciseHistorySession"][];
+        };
+        /**
+         * ExerciseHistoryBest
+         * @description Лучший рабочий подход завершённой сессии. 1ПМ только для графика, не цель.
+         */
+        ExerciseHistoryBest: {
+            /** Load */
+            load: number | null;
+            /** Reps */
+            reps: number;
+            /** Epley 1Rm */
+            epley_1rm: number | null;
+            /** Weight Unit */
+            weight_unit: ("kg" | "lb") | null;
+        };
+        /** ExerciseHistorySession */
+        ExerciseHistorySession: {
+            /**
+             * Performed Id
+             * Format: uuid
+             */
+            performed_id: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Notes */
+            notes: string[];
+            /** Sets */
+            sets: components["schemas"]["ExerciseHistorySet"][];
+            best: components["schemas"]["ExerciseHistoryBest"] | null;
+        };
+        /**
+         * ExerciseHistorySet
+         * @description Подход из факта. Вес — как записан, без пересчёта по текущему справочнику.
+         */
+        ExerciseHistorySet: {
+            /** Weight */
+            weight: number | null;
+            /** Extra Weight */
+            extra_weight: number | null;
+            /** Reps */
+            reps: number | null;
+            /** Rir */
+            rir: number | null;
+            /** Is Warmup */
+            is_warmup: boolean;
+            /** Is Assisted */
+            is_assisted: boolean;
+            /** Is Negative */
+            is_negative: boolean;
+            /**
+             * Weight Unit
+             * @enum {string}
+             */
+            weight_unit: "kg" | "lb";
         };
         /**
          * ExerciseInput
@@ -852,6 +1167,24 @@ export interface components {
             /** Password */
             password: string;
         };
+        /**
+         * MuscleVolumeGroup
+         * @description Рабочие подходы группы за неделю. muscle = null — «Без группы» (упражнение удалено).
+         *
+         *     Для «Без группы» ориентира нет: target_min, target_max и status равны null.
+         */
+        MuscleVolumeGroup: {
+            /** Muscle */
+            muscle: ("chest" | "back" | "shoulders" | "biceps" | "triceps" | "forearms" | "quadriceps" | "hamstrings" | "glutes" | "calves" | "core") | null;
+            /** Sets */
+            sets: number;
+            /** Target Min */
+            target_min: number | null;
+            /** Target Max */
+            target_max: number | null;
+            /** Status */
+            status: ("below" | "in_range" | "above") | null;
+        };
         /** NoteWrite */
         NoteWrite: {
             /** Note */
@@ -942,6 +1275,9 @@ export interface components {
         /**
          * PerformedSummary
          * @description Рабочие подходы: все, кроме разминки, у которых указаны повторы.
+         *
+         *     records пуст, пока тренировка не завершена. После завершения там только
+         *     побитые рекорды, по одному виду на упражнение.
          */
         PerformedSummary: {
             /** Working Sets */
@@ -950,6 +1286,8 @@ export interface components {
             volume: number;
             /** Unit */
             unit: ("kg" | "lb") | null;
+            /** Records */
+            records?: components["schemas"]["PersonalRecord"][];
         };
         /** PerformedWorkoutExport */
         PerformedWorkoutExport: {
@@ -1008,6 +1346,110 @@ export interface components {
             items: components["schemas"]["PerformedItemResponse"][];
             summary: components["schemas"]["PerformedSummary"];
         };
+        /**
+         * PersonalRecord
+         * @description Рекорд, который подходы этой тренировки побили относительно более ранних сессий.
+         *
+         *     weight — максимальная нагрузка, reps — повторы при той же нагрузке,
+         *     epley — расчётный 1ПМ. Повтор старого значения без улучшения сюда не входит.
+         */
+        PersonalRecord: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "weight" | "reps" | "epley";
+            /**
+             * Exercise Id
+             * Format: uuid
+             */
+            exercise_id: string;
+            /** Name */
+            name: string;
+            /** Load */
+            load: number | null;
+            /** Reps */
+            reps: number;
+            /** Epley 1Rm */
+            epley_1rm: number | null;
+            /** Unit */
+            unit: ("kg" | "lb") | null;
+        };
+        /** PlacementResponse */
+        PlacementResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Block Id */
+            block_id: string | null;
+            /** Name */
+            name: string;
+            /** Length Weeks */
+            length_weeks: number;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+        };
+        /**
+         * PlanBlockChange
+         * @description Границы блока периодизации до и после сдвига (тренировки блока едут вместе с ними).
+         */
+        PlanBlockChange: {
+            /**
+             * Placement Id
+             * Format: uuid
+             */
+            placement_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Start Before
+             * Format: date
+             */
+            start_before: string;
+            /**
+             * Start After
+             * Format: date
+             */
+            start_after: string;
+            /**
+             * End Before
+             * Format: date
+             */
+            end_before: string;
+            /**
+             * End After
+             * Format: date
+             */
+            end_after: string;
+        };
+        /** PlanChangeBlockExport */
+        PlanChangeBlockExport: {
+            /**
+             * Placement Id
+             * Format: uuid
+             */
+            placement_id: string;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+        };
         /** PlanChangeItemExport */
         PlanChangeItemExport: {
             /**
@@ -1024,6 +1466,16 @@ export interface components {
             status: ("planned" | "done" | "skipped" | "moved") | null;
             /** Position */
             position: number;
+            /**
+             * Virtual
+             * @default false
+             */
+            virtual: boolean;
+            /**
+             * Materialized
+             * @default false
+             */
+            materialized: boolean;
         };
         /** PlanChangeLogExport */
         PlanChangeLogExport: {
@@ -1077,6 +1529,8 @@ export interface components {
             resolution?: ("cascade" | "stack" | "cancel") | null;
             /** Changes */
             changes: components["schemas"]["PlanChangeItemExport"][];
+            /** Blocks */
+            blocks?: components["schemas"]["PlanChangeBlockExport"][];
         };
         /**
          * PlanCycleCreate
@@ -1144,6 +1598,8 @@ export interface components {
             position: number;
             /** Template Id */
             template_id: string | null;
+            /** Placement Id */
+            placement_id?: string | null;
             /** Name */
             name: string | null;
             /** Items */
@@ -1275,6 +1731,11 @@ export interface components {
             conflicts: components["schemas"]["PlanShiftConflict"][];
             /** Resolutions */
             resolutions: ("cascade" | "stack" | "cancel")[];
+            /**
+             * Blocks
+             * @default []
+             */
+            blocks: components["schemas"]["PlanBlockChange"][];
         };
         /**
          * PlanShiftRequest
@@ -1306,6 +1767,11 @@ export interface components {
             changes: components["schemas"]["PlanShiftChange"][];
             /** Log Id */
             log_id: string | null;
+            /**
+             * Blocks
+             * @default []
+             */
+            blocks: components["schemas"]["PlanBlockChange"][];
         };
         /** PlannedWorkoutExport */
         PlannedWorkoutExport: {
@@ -1699,6 +2165,8 @@ export interface components {
             position: number;
             /** Template Id */
             template_id: string | null;
+            /** Placement Id */
+            placement_id?: string | null;
             /** Name */
             name: string | null;
             /** Items */
@@ -1754,6 +2222,24 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * VolumeWeekResponse
+         * @description Календарная неделя пн–вс, в которую входит запрошенная дата. Пустые группы не выводятся.
+         */
+        VolumeWeekResponse: {
+            /**
+             * Week Start
+             * Format: date
+             */
+            week_start: string;
+            /**
+             * Week End
+             * Format: date
+             */
+            week_end: string;
+            /** Groups */
+            groups: components["schemas"]["MuscleVolumeGroup"][];
         };
         /**
          * WorkoutExerciseResponse
@@ -2161,6 +2647,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExerciseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_exercise_history_api_exercises__exercise_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                exercise_id: string;
+            };
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExerciseHistory"];
                 };
             };
             /** @description Validation Error */
@@ -3433,6 +3952,339 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_muscle_volume_api_volume_muscles_get: {
+        parameters: {
+            query: {
+                /** @description Любая дата нужной недели; неделя считается пн–вс */
+                day: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VolumeWeekResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_user_blocks_api_blocks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_user_block_api_blocks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlockInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_user_placements_api_blocks_placements_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_user_placement_api_blocks_placements__placement_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                placement_id: string;
+            };
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_user_block_api_blocks__block_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: string;
+            };
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_user_block_api_blocks__block_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: string;
+            };
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlockInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_user_block_api_blocks__block_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: string;
+            };
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    copy_user_block_api_blocks__block_id__copy_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: string;
+            };
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_user_block_api_blocks__block_id__apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: string;
+            };
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BlockApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementResponse"];
                 };
             };
             /** @description Validation Error */

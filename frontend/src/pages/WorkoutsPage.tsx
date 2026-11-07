@@ -167,7 +167,7 @@ export function WorkoutsPage() {
           <input
             className={inputClass}
             value={name}
-            placeholder="Например, «День A» или «Верх»"
+            placeholder="Например, «Спина» или «Верх»"
             aria-invalid={error ? true : undefined}
             onChange={(event) => setName(event.target.value)}
           />

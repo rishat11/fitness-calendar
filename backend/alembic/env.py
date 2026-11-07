@@ -4,6 +4,10 @@ from logging.config import fileConfig
 from alembic import context
 from app.config import settings
 from app.models import (
+    Block,
+    BlockPlacement,
+    BlockScheduleItem,
+    BlockWeek,
     Exercise,
     PerformedItem,
     PerformedWorkout,
@@ -35,6 +39,10 @@ assert PerformedWorkout.metadata is target_metadata
 assert PerformedItem.metadata is target_metadata
 assert SetLog.metadata is target_metadata
 assert ProgressionDecision.metadata is target_metadata
+assert Block.metadata is target_metadata
+assert BlockWeek.metadata is target_metadata
+assert BlockScheduleItem.metadata is target_metadata
+assert BlockPlacement.metadata is target_metadata
 
 
 def run_migrations_offline() -> None:

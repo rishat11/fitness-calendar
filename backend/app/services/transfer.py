@@ -8,6 +8,7 @@ from collections.abc import Iterable, Sequence
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.block import BlockPlacement
 from app.models.exercise import Exercise
 from app.models.log import PerformedItem, PerformedWorkout, SetLog
 from app.models.plan import PlanChangeLog, PlannedWorkout
@@ -185,6 +186,8 @@ async def _clear_user_data(db: AsyncSession, user_id: uuid.UUID) -> None:
     await db.execute(delete(PerformedWorkout).where(PerformedWorkout.user_id == user_id))
     await db.execute(delete(PlanChangeLog).where(PlanChangeLog.user_id == user_id))
     await db.execute(delete(PlannedWorkout).where(PlannedWorkout.user_id == user_id))
+    # Размещения блоков дают тренировки в календаре: без них они не должны остаться.
+    await db.execute(delete(BlockPlacement).where(BlockPlacement.user_id == user_id))
     await db.execute(delete(WorkoutTemplate).where(WorkoutTemplate.user_id == user_id))
     await db.execute(delete(Exercise).where(Exercise.user_id == user_id))
 

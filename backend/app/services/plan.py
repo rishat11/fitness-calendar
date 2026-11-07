@@ -18,6 +18,7 @@ from app.models.plan import (
 )
 from app.models.workout import WorkoutTemplate
 from app.schemas.plan import PlanExerciseSnapshot, PlanItemSnapshot, PlanSetSnapshot
+from app.services.block_calendar import find_open_slot, open_slots, slot_row
 
 MAX_RANGE_DAYS = 366
 
@@ -37,17 +38,44 @@ class PlanConflictError(Exception):
 
 async def list_entries(
     db: AsyncSession, user_id: uuid.UUID, start: dt.date, end: dt.date
-) -> Sequence[PlannedWorkout]:
+) -> list[PlannedWorkout]:
+    """Записи диапазона: строки плана и открытые тренировки блоков (без строки в базе).
+
+    Открытые тренировки возвращаются как несохранённые объекты: их id и поля совпадут с
+    будущей строкой, когда тренировку начнут менять.
+    """
     result = await db.scalars(
-        select(PlannedWorkout)
-        .where(
+        select(PlannedWorkout).where(
             PlannedWorkout.user_id == user_id,
             PlannedWorkout.date >= start,
             PlannedWorkout.date <= end,
         )
-        .order_by(PlannedWorkout.date, PlannedWorkout.position, PlannedWorkout.id)
     )
-    return result.all()
+    entries: list[PlannedWorkout] = list(result.all())
+    for slot in await open_slots(db, user_id, start, end):
+        entries.append(slot_row(user_id, slot))
+    entries.sort(key=lambda entry: (entry.date, entry.position, entry.id))
+    return entries
+
+
+async def resolve_entry(
+    db: AsyncSession, user_id: uuid.UUID, entry_id: uuid.UUID
+) -> PlannedWorkout | None:
+    """Запись для изменения: строка плана или открытая тренировка блока, которую сохраняем строкой.
+
+    Так id из календаря работает и для тренировок блока до первого изменения.
+    """
+    row = await get_entry(db, user_id, entry_id)
+    if row is not None:
+        return row
+    await _lock_user_plan(db, user_id)
+    slot = await find_open_slot(db, user_id, entry_id)
+    if slot is None:
+        return None
+    row = slot_row(user_id, slot)
+    db.add(row)
+    await db.flush()
+    return row
 
 
 async def get_entry(
@@ -76,13 +104,8 @@ async def _lock_user_plan(db: AsyncSession, user_id: uuid.UUID) -> None:
 async def _entries_on_day(
     db: AsyncSession, user_id: uuid.UUID, day: dt.date, exclude_id: uuid.UUID | None = None
 ) -> list[PlannedWorkout]:
-    query = select(PlannedWorkout).where(
-        PlannedWorkout.user_id == user_id, PlannedWorkout.date == day
-    )
-    if exclude_id is not None:
-        query = query.where(PlannedWorkout.id != exclude_id)
-    result = await db.scalars(query)
-    return list(result.all())
+    entries = await list_entries(db, user_id, day, day)
+    return [entry for entry in entries if entry.id != exclude_id]
 
 
 async def _entries_by_date(
@@ -272,5 +295,13 @@ async def update_entry(
 
 
 async def delete_entry(db: AsyncSession, entry: PlannedWorkout) -> None:
+    """Удаляет запись. Тренировку блока удалить нельзя: блок снова показал бы её на этом дне.
+
+    Её пропускают (статус «пропущена») или снимают блок с календаря целиком.
+    """
+    if entry.placement_id is not None:
+        raise PlanConflictError(
+            "Тренировку блока нельзя удалить: отметьте её пропущенной или снимите блок с календаря"
+        )
     await db.delete(entry)
     await db.flush()

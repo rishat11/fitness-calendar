@@ -44,7 +44,7 @@ const WORKOUT = {
   note: null,
   started_at: "2026-11-10T10:00:00Z",
   finished_at: null,
-  summary: { working_sets: 0, volume: 0, unit: null },
+  summary: { working_sets: 0, volume: 0, unit: null, records: [] },
   items: [
     {
       id: "item-1",
@@ -76,6 +76,7 @@ const PREVIOUS = {
 
 let failPuts = false;
 let progression: unknown = null;
+let finishRecords: unknown[] = [];
 const wakeRequest = vi.fn(async () => ({ release: vi.fn() }));
 
 const INCREASE = {
@@ -117,7 +118,11 @@ function handleRequest(url: string, init?: RequestInit): Response | Promise<Resp
   if (path === "/api/exercises") return jsonResponse([BENCH]);
   if (method === "DELETE") return new Response(null, { status: 204 });
   if (path.endsWith("/finish")) {
-    return jsonResponse({ ...WORKOUT, finished_at: "2026-11-10T11:00:00Z", summary: { working_sets: 1, volume: 250, unit: "kg" } });
+    return jsonResponse({
+      ...WORKOUT,
+      finished_at: "2026-11-10T11:00:00Z",
+      summary: { working_sets: 1, volume: 250, unit: "kg", records: finishRecords },
+    });
   }
   return jsonResponse({ detail: "Не найдено" }, 404);
 }
@@ -139,6 +144,7 @@ describe("WorkoutLogPage", () => {
   beforeEach(() => {
     failPuts = false;
     progression = null;
+    finishRecords = [];
     clearOutbox();
     wakeRequest.mockClear();
     Object.defineProperty(navigator, "wakeLock", {
@@ -246,5 +252,88 @@ describe("WorkoutLogPage", () => {
       expect(screen.getByRole("status").textContent).toMatch(/Нет связи/);
     });
     expect(readOutbox().some((op) => op.dedupeKey === "set:s1" && (op.body as { weight: number }).weight === 100)).toBe(true);
+  });
+
+  it("shows personal records after the workout is finished", async () => {
+    finishRecords = [
+      {
+        kind: "weight",
+        exercise_id: BENCH.id,
+        name: BENCH.name,
+        load: 100,
+        reps: 5,
+        epley_1rm: null,
+        unit: "kg",
+      },
+      {
+        kind: "reps",
+        exercise_id: BENCH.id,
+        name: BENCH.name,
+        load: 100,
+        reps: 8,
+        epley_1rm: null,
+        unit: "kg",
+      },
+      {
+        kind: "epley",
+        exercise_id: BENCH.id,
+        name: BENCH.name,
+        load: 100,
+        reps: 8,
+        epley_1rm: 126.67,
+        unit: "kg",
+      },
+    ];
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(await screen.findByText(/Рабочих подходов/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Личные рекорды" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Завершить" }));
+
+    expect(await screen.findByRole("heading", { name: "Личные рекорды" })).toBeInTheDocument();
+    expect(screen.getByText("Жим штанги лёжа: рекорд веса 100 кг")).toBeInTheDocument();
+    expect(screen.getByText("Жим штанги лёжа: рекорд повторов 8 при 100 кг")).toBeInTheDocument();
+    expect(screen.getByText("Жим штанги лёжа: рекорд 1ПМ 126,67 кг")).toBeInTheDocument();
+  });
+
+  it("starts the rest timer after a working set is saved and pauses it", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const first = await screen.findByRole("group", { name: "Подход 1" });
+
+    expect(screen.getByRole("button", { name: "Старт" })).toBeInTheDocument();
+    await user.type(within(first).getByRole("textbox", { name: "Жим штанги лёжа, подход 1: повторы" }), "8");
+
+    // В простое табло тоже показывает 01:30, поэтому ждём статус отсчёта.
+    await waitFor(() => {
+      expect(screen.getByText("Отдых")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("timer")).toHaveTextContent("01:30");
+
+    await user.click(screen.getByRole("button", { name: "Пауза" }));
+    expect(screen.getByText("На паузе")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Старт" })).toBeInTheDocument();
+
+    const paused = screen.getByRole("timer").textContent;
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    expect(screen.getByRole("timer").textContent).toBe(paused);
+  });
+
+  it("does not start the rest timer for a warm-up set", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const first = await screen.findByRole("group", { name: "Подход 1" });
+
+    await user.click(within(first).getByRole("checkbox", { name: "Разминка" }));
+    await user.type(within(first).getByRole("textbox", { name: "Жим штанги лёжа, подход 1: повторы" }), "8");
+
+    await waitFor(() => {
+      expect(readOutbox()).toHaveLength(0);
+    });
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === "PUT")).toBe(true);
+    expect(screen.getByText("Отдых не идёт")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Старт" })).toBeInTheDocument();
   });
 });
