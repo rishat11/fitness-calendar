@@ -2,23 +2,26 @@ import { useState, type FormEvent } from "react";
 import { type Block, type BlockPlacement } from "../api/client";
 import { todayIso } from "../features/calendar/dates";
 import {
+  addWeek,
   DAY_LABELS,
   draftToInput,
   EMPTY_CHOICE,
   emptyBlockDraft,
-  emptyWeekDraft,
   MAX_BLOCK_WEEKS,
   REST_CHOICE,
   WEEK_TYPE_LABELS,
   type BlockDraft,
 } from "../features/blocks/draft";
+import { PeriodizationHelp } from "../features/blocks/PeriodizationHelp";
 import {
+  useAcceptDeload,
   useApplyBlock,
   useBlockPlacements,
   useBlocks,
   useCopyBlock,
   useCreateBlock,
   useDeleteBlock,
+  useDeloadSuggestion,
   useRemoveBlockPlacement,
 } from "../features/blocks/useBlocks";
 import { useWorkouts } from "../features/workouts/useWorkouts";
@@ -88,6 +91,10 @@ function BlockForm({ onDone }: { onDone?: () => void }) {
 
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-1 text-sm font-medium">Недели блока</legend>
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          В конце блока стоит неделя разгрузки: объём 50%, запас повторов 4. Множитель можно
+          изменить. Если убрать эту неделю, при сохранении она добавится снова.
+        </p>
         {draft.weeks.map((week, index) => (
           <div
             key={week.key}
@@ -166,7 +173,7 @@ function BlockForm({ onDone }: { onDone?: () => void }) {
             type="button"
             className={buttonClass}
             disabled={draft.weeks.length >= MAX_BLOCK_WEEKS}
-            onClick={() => setDraft({ ...draft, weeks: [...draft.weeks, emptyWeekDraft()] })}
+            onClick={() => setDraft({ ...draft, weeks: addWeek(draft.weeks) })}
           >
             Добавить неделю
           </button>
@@ -314,6 +321,38 @@ function BlockRow({ block }: { block: Block }) {
   );
 }
 
+function DeloadOffer({ placementId }: { placementId: string }) {
+  const { data } = useDeloadSuggestion(placementId);
+  const accept = useAcceptDeload();
+  if (!data?.suggest) return null;
+
+  return (
+    <section aria-label="Предложение разгрузки" className="flex flex-col gap-2">
+      <p className="text-sm">{data.message}</p>
+      <ul className="flex flex-col gap-1">
+        {(data.reasons ?? []).map((reason) => (
+          <li key={reason.code} className="text-sm text-slate-600 dark:text-slate-300">
+            {reason.text}
+          </li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        className={`${primaryButtonClass} self-start`}
+        disabled={accept.isPending}
+        onClick={() => accept.mutate(placementId)}
+      >
+        Сделать эту неделю разгрузкой
+      </button>
+      {accept.isError && (
+        <span role="alert" className="text-sm text-red-600">
+          {accept.error.message}
+        </span>
+      )}
+    </section>
+  );
+}
+
 function PlacementRow({ placement }: { placement: BlockPlacement }) {
   const remove = useRemoveBlockPlacement();
   return (
@@ -323,6 +362,7 @@ function PlacementRow({ placement }: { placement: BlockPlacement }) {
         <p className="text-sm text-slate-600 dark:text-slate-300">
           {placement.start_date} — {placement.end_date} ({weeksLabel(placement.length_weeks)})
         </p>
+        <DeloadOffer placementId={placement.id} />
       </div>
       <div className="flex flex-col items-start gap-1">
         <button
@@ -355,6 +395,7 @@ export function BlocksPage() {
         Блок — расписание недель, которое вы применяете к календарю с даты старта. Тренировки
         создаются по неделям, поэтому правка блока не меняет уже применённый план.
       </p>
+      <PeriodizationHelp />
 
       <div>
         <button type="button" className={buttonClass} onClick={() => setShowForm((value) => !value)}>
