@@ -37,6 +37,7 @@ async def read_hint(
         weight_unit=hint.weight_unit,  # type: ignore[arg-type]
         last_session_id=hint.last_session_id,
         epley_1rm=hint.epley_1rm,
+        week_type=hint.week_type,
     )
 
 

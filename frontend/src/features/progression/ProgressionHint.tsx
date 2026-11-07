@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, api, type ProgressionDecisionResult, type ProgressionHint } from "../../api/client";
+import { WEEK_TYPE_LABELS } from "../blocks/draft";
 
 const buttonClass =
   "min-h-11 rounded-lg px-4 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50 dark:text-slate-200 dark:hover:bg-slate-800";
@@ -40,12 +41,17 @@ export function ProgressionHintCard({
 
   if (!hint.data) return null;
 
+  const weekType = hint.data.week_type ? WEEK_TYPE_LABELS[hint.data.week_type] : null;
+
   return (
     <aside
       role="region"
       aria-label="Подсказка по прогрессии"
       className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"
     >
+      {weekType && (
+        <p className="text-sm text-slate-600 dark:text-slate-300">Тип недели: {weekType}</p>
+      )}
       <p>{hint.data.message}</p>
       {hint.data.suggested_weight != null && (
         <p>Предлагаемый вес: {formatWeight(hint.data.suggested_weight, hint.data.weight_unit)}</p>

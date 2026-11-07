@@ -61,6 +61,7 @@ async def test_accept_fills_the_open_set_and_does_not_write_plan_or_template(
     assert hint.status_code == 200, hint.text
     assert hint.json()["status"] == "increase_weight"
     assert hint.json()["suggested_weight"] == 102.5
+    assert hint.json()["week_type"] is None
 
     second = await _plan_workout(client, exercise_id, "2026-11-17")
     _, open_log = await _start(client, second["id"])
@@ -130,3 +131,89 @@ async def test_new_session_shows_the_hint_again(client: AsyncClient) -> None:
     assert body["status"] == "increase_weight"
     assert body["suggested_weight"] == 105
     assert body["last_session_id"] == next_workout["id"]
+    assert body["week_type"] is None
+
+
+async def _fill(client: AsyncClient, workout: dict, **values: object) -> None:
+    for logged in workout["items"][0]["sets"]:
+        saved = await client.put(
+            f"/api/performed/{workout['id']}/sets/{logged['id']}",
+            json=_values(**values),
+        )
+        assert saved.status_code == 200, saved.text
+    finished = await client.post(f"/api/performed/{workout['id']}/finish")
+    assert finished.status_code == 200, finished.text
+
+
+async def test_hint_uses_the_block_week_and_skips_deload_as_a_weight_baseline(
+    client: AsyncClient,
+) -> None:
+    """Тип недели приходит из размещения блока. Разгрузка на верхней границе не повышает вес."""
+    await _register(client, "weeks@example.com")
+    exercise_id = await _exercise(client)
+    template = await client.post(
+        "/api/workouts",
+        json={
+            "name": "День A",
+            "items": [
+                {
+                    "exercise_id": exercise_id,
+                    "sets": [
+                        {"rep_min": 8, "rep_max": 12, "target_rir": 2, "rest_seconds": 90},
+                        {"rep_min": 8, "rep_max": 12, "target_rir": 2, "rest_seconds": 90},
+                    ],
+                }
+            ],
+        },
+    )
+    assert template.status_code == 201, template.text
+    block = await client.post(
+        "/api/blocks",
+        json={
+            "name": "Блок",
+            "weeks": [
+                {
+                    "week_type": "hypertrophy",
+                    "rep_min": 8,
+                    "rep_max": 12,
+                    "target_rir": 2,
+                    "volume_multiplier": 1,
+                },
+                {
+                    "week_type": "deload",
+                    "rep_min": 3,
+                    "rep_max": 5,
+                    "target_rir": 0,
+                    "volume_multiplier": 0.5,
+                },
+            ],
+            "schedule": [
+                {"day_index": 0, "kind": "workout", "template_id": template.json()["id"]},
+            ],
+        },
+    )
+    assert block.status_code == 201, block.text
+    applied = await client.post(
+        f"/api/blocks/{block.json()['id']}/apply", json={"start_date": "2026-11-02"}
+    )
+    assert applied.status_code == 201, applied.text
+
+    plan = await client.get("/api/plan", params={"start": "2026-11-01", "end": "2026-11-16"})
+    assert plan.status_code == 200, plan.text
+    by_date = {entry["date"]: entry for entry in plan.json()}
+
+    _, hypertrophy = await _start(client, by_date["2026-11-02"]["id"])
+    await _fill(client, hypertrophy, weight=100, reps=12, rir=2)
+    hint = await client.get(f"/api/progression/{exercise_id}")
+    assert hint.status_code == 200, hint.text
+    assert hint.json()["status"] == "increase_weight"
+    assert hint.json()["suggested_weight"] == 102.5
+    assert hint.json()["week_type"] == "hypertrophy"
+
+    _, deload = await _start(client, by_date["2026-11-09"]["id"])
+    assert deload["items"][0]["targets"][0]["rep_max"] == 5
+    await _fill(client, deload, weight=80, reps=5, rir=0)
+    after = await client.get(f"/api/progression/{exercise_id}")
+    assert after.status_code == 200, after.text
+    # Верх диапазона разгрузки не предлагает 82,5 и не подменяет собой прибавку гипертрофии.
+    assert after.json() is None

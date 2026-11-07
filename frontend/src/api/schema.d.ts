@@ -2046,6 +2046,8 @@ export interface components {
             last_session_id: string;
             /** Epley 1Rm */
             epley_1rm: number | null;
+            /** Week Type */
+            week_type: ("high_reps" | "hypertrophy" | "strength" | "deload" | "free") | null;
         };
         /** RegisterRequest */
         RegisterRequest: {

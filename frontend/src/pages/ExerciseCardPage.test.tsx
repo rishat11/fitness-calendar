@@ -78,6 +78,7 @@ const HINT = {
   weight_unit: "kg",
   last_session_id: "perf-1",
   epley_1rm: 140,
+  week_type: "high_reps",
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -141,6 +142,9 @@ describe("ExerciseCardPage", () => {
     expect(screen.getByText("100 кг, доп. 2,5 кг, 8 повт., RIR 2")).toBeInTheDocument();
     expect(await screen.findByRole("region", { name: "Подсказка по прогрессии" })).toHaveTextContent(
       "Повысьте вес на шаг упражнения",
+    );
+    expect(screen.getByRole("region", { name: "Подсказка по прогрессии" })).toHaveTextContent(
+      "Тип недели: Высокие повторы",
     );
     expect(screen.getByRole("img", { name: /График прогрессии/ })).toBeInTheDocument();
     expect(screen.getByText("Расчётный 1ПМ по формуле Эпли. Это не цель.")).toBeInTheDocument();
