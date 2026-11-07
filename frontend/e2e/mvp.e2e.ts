@@ -32,7 +32,7 @@ test("mvp path: template, cycle, phone log, drag, shift, import, delete", async 
   await page.getByLabel("Название тренировки").fill("День A");
   await page.getByRole("button", { name: "Создать" }).click();
   await expect(page.getByRole("heading", { name: "Упражнения" })).toBeVisible();
-
+  await page.getByRole("button", { name: "Добавить упражнение" }).click();
   const quick = page.getByRole("form", { name: "Быстрое создание упражнения" });
   await quick.getByLabel("Название").fill("Присед");
   await quick.getByLabel("Основная группа").selectOption({ label: "Квадрицепсы" });

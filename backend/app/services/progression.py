@@ -361,17 +361,24 @@ def progression_hint(
 
 
 def week_type_for_offset(
-    day_offset: int | None, weeks: Sequence[Mapping[str, object]] | None
+    day_offset: int | None,
+    weeks: Sequence[Mapping[str, object]] | None,
+    cycle_days: int = DAYS_IN_WEEK,
+    *,
+    repeats: bool = False,
 ) -> WeekKind | None:
-    """Тип недели блока по номеру дня от старта размещения.
+    """Тип цикла блока по номеру дня от старта размещения.
 
-    Индекс тот же, что у слотов календаря: `day_offset // 7`. Нет снимка,
-    день вне блока или неизвестный тип — тренировка без типа.
+    Индекс тот же, что у слотов календаря: `day_offset // cycle_days`. У блока без
+    конца циклы идут по кругу. Нет снимка, день вне блока или неизвестный тип —
+    тренировка без типа.
     """
-    if day_offset is None or day_offset < 0 or not weeks:
+    if day_offset is None or day_offset < 0 or not weeks or cycle_days < 1:
         return None
-    index = day_offset // DAYS_IN_WEEK
-    if index >= len(weeks):
+    index = day_offset // cycle_days
+    if repeats:
+        index %= len(weeks)
+    elif index >= len(weeks):
         return None
     week = weeks[index]
     raw = week.get("week_type")
@@ -446,7 +453,13 @@ async def _week_types(
     if not workout_ids:
         return {}
     rows = await db.execute(
-        select(PerformedWorkout.id, PlannedWorkout.day_offset, BlockPlacement.weeks_snapshot)
+        select(
+            PerformedWorkout.id,
+            PlannedWorkout.day_offset,
+            BlockPlacement.weeks_snapshot,
+            BlockPlacement.cycle_days,
+            BlockPlacement.repeats,
+        )
         .join(PlannedWorkout, PlannedWorkout.id == PerformedWorkout.planned_id)
         .join(BlockPlacement, BlockPlacement.id == PlannedWorkout.placement_id)
         .where(
@@ -457,8 +470,8 @@ async def _week_types(
         )
     )
     found: dict[uuid.UUID, WeekKind] = {}
-    for performed_id, day_offset, weeks in rows.all():
-        week_type = week_type_for_offset(day_offset, weeks)
+    for performed_id, day_offset, weeks, cycle_days, repeats in rows.all():
+        week_type = week_type_for_offset(day_offset, weeks, cycle_days, repeats=bool(repeats))
         if week_type is not None:
             found[performed_id] = week_type
     return found

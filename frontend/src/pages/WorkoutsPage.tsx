@@ -148,7 +148,7 @@ export function WorkoutsPage() {
     setError(null);
     createWorkout.mutate(
       { name: trimmed, items: [] },
-      { onSuccess: (workout) => navigate(`/workouts/${workout.id}`) },
+      { onSuccess: (workout) => navigate(`/workouts/${workout.id}`, { state: { editing: true } }) },
     );
   };
 
@@ -172,23 +172,25 @@ export function WorkoutsPage() {
             onChange={(event) => setName(event.target.value)}
           />
         </label>
-        <button
-          type="submit"
-          disabled={createWorkout.isPending}
-          className="min-h-11 rounded-lg bg-slate-900 px-5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
-        >
-          Создать
-        </button>
-        {error && (
-          <span role="alert" className="text-sm text-red-600">
-            {error}
-          </span>
-        )}
-        {createWorkout.isError && (
-          <span role="alert" className="text-sm text-red-600">
-            {createWorkout.error.message}
-          </span>
-        )}
+        <div className="flex min-h-11 flex-wrap items-center gap-3">
+          <button
+            type="submit"
+            disabled={createWorkout.isPending}
+            className="min-h-11 rounded-lg bg-slate-900 px-5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+          >
+            Создать
+          </button>
+          {error && (
+            <span role="alert" className="text-sm text-red-600">
+              {error}
+            </span>
+          )}
+          {createWorkout.isError && (
+            <span role="alert" className="text-sm text-red-600">
+              {createWorkout.error.message}
+            </span>
+          )}
+        </div>
       </form>
 
       {isPending && <p className="text-slate-600 dark:text-slate-300">Загрузка…</p>}

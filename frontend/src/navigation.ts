@@ -6,4 +6,6 @@ export const NAV_ITEMS = [
   { to: "/exercises", label: "Упражнения" },
   { to: "/volume", label: "Объём" },
   { to: "/nutrition", label: "Питание" },
+  { to: "/inbody", label: "InBody" },
+  { to: "/recommendations", label: "Советы" },
 ];

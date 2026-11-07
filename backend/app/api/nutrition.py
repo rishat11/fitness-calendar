@@ -10,10 +10,10 @@ from app.schemas.nutrition import (
 from app.services.nutrition import (
     IntakeView,
     MacroTargetView,
+    current_macro_target,
     get_intake,
     present_intake,
     save_intake,
-    unavailable_macro_target,
 )
 
 router = APIRouter(prefix="/api/nutrition", tags=["nutrition"])
@@ -60,10 +60,5 @@ async def update_intake(body: IntakeUpdate, user: CurrentUser, db: DbSession) ->
 
 @router.get("/targets", response_model=MacroTargetResponse)
 async def read_macro_target(user: CurrentUser, db: DbSession) -> MacroTargetResponse:
-    """Цель недоступна, пока нет замера InBody. Эндпоинт ничего не создаёт и не меняет.
-
-    На этапе 4 после сохранения замера здесь вызывается target_macros, и заглушка
-    заменяется посчитанными граммами и калориями. Сейчас этот вызов не подключён.
-    """
-    # user и db держат маршрут за входом. Заглушка сессию не читает и не пишет.
-    return _target_response(unavailable_macro_target())
+    """Цель по последнему замеру. Без замера или цели отдаёт причину и ничего не записывает."""
+    return _target_response(await current_macro_target(db, user.id))

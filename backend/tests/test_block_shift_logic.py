@@ -67,6 +67,32 @@ def test_shifting_from_the_block_start_moves_the_whole_block_without_rows() -> N
     }
 
 
+def test_open_block_shifts_only_from_its_first_day() -> None:
+    first, later = _slot(1, NOV2), _slot(3, NOV9)
+    plan = compute_shift(
+        [first, later],
+        operation="shift_following",
+        anchor_id=first.id,
+        days=1,
+        resolution="cascade",
+        placements=[PlacementSpan(id=PLACEMENT, name="Гипертрофия", start=NOV2, end=None)],
+    )
+
+    [block] = plan.blocks
+    assert block.start_after == NOV3
+    assert block.end_after is None
+
+    with pytest.raises(ShiftError, match="без конца"):
+        compute_shift(
+            [first, later],
+            operation="shift_following",
+            anchor_id=later.id,
+            days=1,
+            resolution="cascade",
+            placements=[PlacementSpan(id=PLACEMENT, name="Гипертрофия", start=NOV2, end=None)],
+        )
+
+
 def test_shifting_inside_the_block_moves_only_its_end() -> None:
     first, third = _slot(1, NOV2), _slot(3, NOV9)
     plan = compute_shift(

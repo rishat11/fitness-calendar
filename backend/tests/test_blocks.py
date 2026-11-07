@@ -130,6 +130,7 @@ async def test_create_list_get_and_replace_a_block(client: AsyncClient) -> None:
 
     block = await _block(client, template_a, template_b)
     assert block["length_weeks"] == 2
+    assert block["cycle_days"] == 7
     assert [week["position"] for week in block["weeks"]] == [1, 2]
     assert [item["kind"] for item in block["schedule"]] == ["workout", "rest", "workout"]
     assert block["schedule"][0]["name"] == "День A"
@@ -175,6 +176,14 @@ async def test_invalid_block_bodies_are_rejected(client: AsyncClient) -> None:
         ],
     )
     assert (await client.post("/api/blocks", json=duplicate_day)).status_code == 422
+
+    beyond_cycle = _block_body(
+        "Ошибка",
+        [_week()],
+        [{"day_index": 5, "kind": "workout", "template_id": template}],
+    )
+    beyond_cycle["cycle_days"] = 5
+    assert (await client.post("/api/blocks", json=beyond_cycle)).status_code == 422
 
     foreign_template = _block_body(
         "Ошибка",
@@ -435,6 +444,40 @@ async def test_block_deletion_keeps_applied_placements(client: AsyncClient) -> N
     placements = (await client.get("/api/blocks/placements")).json()
     assert placements[0]["block_id"] is None
     assert len(await _plan(client)) == 6
+
+
+async def test_repeating_block_continues_the_cycle_after_the_last_week(client: AsyncClient) -> None:
+    await _register(client, "user@example.com")
+    template_a = await _template(client, "День A")
+    template_b = await _template(client, "День B")
+    block = await _block(client, template_a, template_b)
+
+    applied = await client.post(
+        f"/api/blocks/{block['id']}/apply",
+        json={"start_date": "2026-11-02", "repeats": True},
+    )
+    assert applied.status_code == 201, applied.text
+    assert applied.json()["repeats"] is True
+    assert applied.json()["end_date"] is None
+
+    entries = await _plan(client)
+    assert _on(entries, "2026-11-09")["items"][0]["sets"][0]["rep_min"] == 3
+    again = _on(entries, "2026-11-16")
+    assert again["name"] == "День A"
+    assert again["items"][0]["sets"][0]["rep_min"] == 8
+
+
+async def test_repeat_extends_a_block_already_on_the_calendar(client: AsyncClient) -> None:
+    await _register(client, "user@example.com")
+    template = await _template(client, "День A")
+    block = await _block(client, template, template)
+    placement = await _apply(client, block["id"])
+    assert all(entry["date"] <= "2026-11-15" for entry in await _plan(client))
+
+    extended = await client.post(f"/api/blocks/placements/{placement['id']}/repeat")
+    assert extended.status_code == 200, extended.text
+    assert extended.json()["end_date"] is None
+    assert _on(await _plan(client), "2026-11-16")["name"] == "День A"
 
 
 async def test_block_migration_can_be_reverted_and_reapplied() -> None:

@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import CheckConstraint, Float, ForeignKey, String, Uuid, false
+from sqlalchemy import CheckConstraint, Float, ForeignKey, String, Uuid
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,4 +37,3 @@ class Exercise(Base):
     weight_step: Mapped[float] = mapped_column(Float)
     rep_min: Mapped[int] = mapped_column()
     rep_max: Mapped[int] = mapped_column()
-    archived: Mapped[bool] = mapped_column(default=False, server_default=false())

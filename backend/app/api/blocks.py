@@ -20,6 +20,7 @@ from app.services.blocks import (
     get_block,
     list_blocks,
     remove_placement,
+    repeat_placement,
     replace_block,
 )
 
@@ -55,6 +56,26 @@ async def create_user_block(body: BlockInput, user: CurrentUser, db: DbSession) 
 @router.get("/placements", response_model=list[PlacementResponse])
 async def list_user_placements(user: CurrentUser, db: DbSession) -> list[BlockPlacement]:
     return await load_placements(db, user.id)
+
+
+@router.post("/placements/{placement_id}/repeat", response_model=PlacementResponse)
+async def repeat_user_placement(
+    placement_id: uuid.UUID, user: CurrentUser, db: DbSession
+) -> BlockPlacement:
+    placement = next(
+        (item for item in await load_placements(db, user.id) if item.id == placement_id),
+        None,
+    )
+    if placement is None:
+        raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
+    try:
+        await repeat_placement(db, user.id, placement)
+    except BlockConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    except BlockError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
+    await db.commit()
+    return placement
 
 
 @router.delete("/placements/{placement_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -120,7 +141,7 @@ async def apply_user_block(
 ) -> BlockPlacement:
     block = await _owned_or_404(db, user.id, block_id)
     try:
-        placement = await apply_block(db, user.id, block, body.start_date)
+        placement = await apply_block(db, user.id, block, body.start_date, repeats=body.repeats)
     except BlockConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
     await db.commit()

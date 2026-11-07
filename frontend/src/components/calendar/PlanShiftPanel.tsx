@@ -18,7 +18,6 @@ const inputClass =
 
 type PlanShiftPanelProps = {
   entry: PlanEntry;
-  swapCandidates: PlanEntry[];
   onApplied: (changes: PlanShiftChange[]) => void;
 };
 
@@ -44,17 +43,15 @@ function conflictText(result: PlanShiftPreview): string {
 }
 
 /** Меню сдвига: предпросмотр «было, станет», варианты конфликта и применение. */
-export function PlanShiftPanel({ entry, swapCandidates, onApplied }: PlanShiftPanelProps) {
+export function PlanShiftPanel({ entry, onApplied }: PlanShiftPanelProps) {
   const previewShift = usePreviewPlanShift();
   const applyShift = useApplyPlanShift();
   const [days, setDays] = useState("1");
-  const [otherId, setOtherId] = useState("");
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const parsedDays = Number(days);
   const daysValid = Number.isInteger(parsedDays) && parsedDays !== 0 && Math.abs(parsedDays) <= 366;
   const movable = canShift(entry);
   const canSkip = entry.kind === "workout" && entry.status === "planned";
-  const canSwap = movable && entry.kind === "workout" && otherId !== "";
   const busy = previewShift.isPending || applyShift.isPending;
   const error = previewShift.error ?? applyShift.error;
 
@@ -138,39 +135,6 @@ export function PlanShiftPanel({ entry, swapCandidates, onApplied }: PlanShiftPa
           Пропустить эту
         </button>
       </div>
-
-      {entry.kind === "workout" && (
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="flex flex-col gap-1 text-sm font-medium">
-            Вторая тренировка
-            <select
-              className={inputClass}
-              value={otherId}
-              onChange={(event) => {
-                setOtherId(event.target.value);
-                setPreview(null);
-              }}
-            >
-              <option value="">Из видимого периода</option>
-              {swapCandidates.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.name ?? "Тренировка"}, {formatLongDate(candidate.date)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className={buttonClass}
-            disabled={!canSwap || busy}
-            onClick={() =>
-              runPreview({ operation: "swap", entry_id: entry.id, other_id: otherId })
-            }
-          >
-            Поменять местами
-          </button>
-        </div>
-      )}
 
       {preview && (
         <div

@@ -5,6 +5,7 @@ from typing import Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.exercise import Equipment, ExerciseInput, WeightType
+from app.schemas.inbody import InbodyScanInput
 from app.schemas.log import SetWrite
 from app.schemas.plan import PlanItemSnapshot, PlanKind, PlanStatus
 from app.schemas.profile import ProfileUpdate, WeightUnit
@@ -22,6 +23,7 @@ MAX_PLANNED = 20_000
 MAX_PERFORMED = 10_000
 MAX_CHANGE_LOGS = 20
 MAX_DECISIONS = 10_000
+MAX_SCANS = 2_000
 
 
 class _Strict(BaseModel):
@@ -32,7 +34,14 @@ class ExerciseExport(ExerciseInput):
     model_config = ConfigDict(extra="forbid")
 
     id: uuid.UUID
-    archived: bool
+
+    @model_validator(mode="before")
+    @classmethod
+    def drop_retired_archive_flag(cls, data: object) -> object:
+        """Старые файлы экспорта несли флаг архива. Он больше не хранится."""
+        if isinstance(data, dict) and "archived" in data:
+            return {key: value for key, value in data.items() if key != "archived"}
+        return data
 
 
 class TemplateSetExport(WorkoutSetInput):
@@ -155,6 +164,14 @@ class PerformedWorkoutExport(_Strict):
     items: list[PerformedItemExport] = Field(default_factory=list, max_length=MAX_ITEMS)
 
 
+class InbodyScanExport(InbodyScanInput):
+    """Старые файлы несут отметки условий. При импорте они отбрасываются."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: uuid.UUID
+
+
 class ExportDocument(_Strict):
     """Полный снимок данных одного пользователя. Версия формата позволяет читать старые файлы."""
 
@@ -169,6 +186,8 @@ class ExportDocument(_Strict):
     progression_decisions: list[ProgressionDecisionExport] = Field(
         default_factory=list, max_length=MAX_DECISIONS
     )
+    # В старых файлах списка нет: импорт читает его как пустой.
+    inbody_scans: list[InbodyScanExport] = Field(default_factory=list, max_length=MAX_SCANS)
 
 
 class ImportResult(_Strict):

@@ -8,7 +8,7 @@ import type {
 
 export const MAX_ITEMS = 50;
 export const MAX_SETS = 20;
-const DEFAULT_SET_COUNT = 3;
+const DEFAULT_SET_COUNT = 4;
 
 /** Значения полей хранятся строками, как их вводит пользователь; в API уходят числа. */
 export type SetDraft = {
@@ -22,7 +22,7 @@ export type SetDraft = {
 export type ItemDraft = {
   key: string;
   exerciseId: string;
-  exercise: Pick<Exercise, "name" | "primary_muscle" | "equipment" | "archived">;
+  exercise: Pick<Exercise, "name" | "primary_muscle" | "equipment">;
   sets: SetDraft[];
 };
 
@@ -65,7 +65,6 @@ export function newItemDraft(exercise: Exercise): ItemDraft {
       name: exercise.name,
       primary_muscle: exercise.primary_muscle,
       equipment: exercise.equipment,
-      archived: exercise.archived,
     },
     sets,
   };
@@ -81,7 +80,6 @@ export function draftFromWorkout(workout: Workout): WorkoutDraft {
         name: item.exercise.name,
         primary_muscle: item.exercise.primary_muscle,
         equipment: item.exercise.equipment,
-        archived: item.exercise.archived,
       },
       sets: item.sets.map((set) =>
         newSetDraft({

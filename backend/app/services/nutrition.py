@@ -1,9 +1,7 @@
 """Текущее БЖУ и расчёт цели по правилу spec.md 4.10.
 
 Калории текущего потребления не хранятся: их считает macro_calories.
-target_macros из API загрузки замера не вызывается: замера InBody ещё нет.
-На этапе 4 после успешного сохранения замера нужно вызвать target_macros
-и отдать эти граммы и калории вместо заглушки unavailable_macro_target.
+target_macros вызывается из current_macro_target по последнему замеру InBody.
 """
 
 import uuid
@@ -15,6 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.nutrition import NutritionIntake
+from app.services.inbody import latest_scan
+from app.services.profile import get_profile_or_default
 
 GoalName = Literal["muscle_gain", "recomposition", "cut", "maintenance"]
 Number = Decimal | int | float
@@ -49,6 +49,8 @@ TRAINING_ACTIVITY = Decimal("1.5")
 FAT_CALORIE_SHARE = Decimal("0.20")
 
 NO_INBODY_SCAN_REASON = "нет замера InBody"
+NO_GOAL_REASON = "не выбрана цель"
+CANNOT_COMPUTE_REASON = "по замеру нельзя посчитать цель"
 
 _GRAM = Decimal("0.1")
 _KCAL = Decimal("1")
@@ -139,15 +141,40 @@ def target_macros(
     return MacroTarget(protein_g=protein, fat_g=fat, carbs_g=carbs, calories=calories)
 
 
-def unavailable_macro_target() -> MacroTargetView:
-    """Заглушка, пока нет замера. Ничего не читает и не записывает."""
+def unavailable_macro_target(reason: str = NO_INBODY_SCAN_REASON) -> MacroTargetView:
+    """Пустая цель. Ничего не читает и не записывает."""
     return MacroTargetView(
         available=False,
-        reason=NO_INBODY_SCAN_REASON,
+        reason=reason,
         protein_g=None,
         fat_g=None,
         carbs_g=None,
         calories=None,
+    )
+
+
+async def current_macro_target(db: AsyncSession, user_id: uuid.UUID) -> MacroTargetView:
+    """Цель по последнему весу и проценту жира и по цели профиля. Сессию не меняет."""
+    scan = await latest_scan(db, user_id)
+    if scan is None:
+        return unavailable_macro_target()
+    profile = await get_profile_or_default(db, user_id)
+    if profile.goal is None:
+        return unavailable_macro_target(NO_GOAL_REASON)
+    result = target_macros(
+        goal=profile.goal,
+        weight_kg=scan.weight_kg,
+        body_fat_percent=scan.pbf_percent,
+    )
+    if result.is_empty():
+        return unavailable_macro_target(CANNOT_COMPUTE_REASON)
+    return MacroTargetView(
+        available=True,
+        reason=None,
+        protein_g=result.protein_g,
+        fat_g=result.fat_g,
+        carbs_g=result.carbs_g,
+        calories=result.calories,
     )
 
 

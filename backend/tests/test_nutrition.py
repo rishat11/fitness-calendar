@@ -1,6 +1,3 @@
-import inspect
-
-import app.api.nutrition as nutrition_api
 from app.models.nutrition import NutritionIntake
 from httpx import AsyncClient
 from sqlalchemy import func, select
@@ -112,22 +109,77 @@ async def test_put_rejects_invalid_grams(client: AsyncClient) -> None:
     assert kept.json() == {**INTAKE, "calories": 1650}
 
 
-async def test_macro_target_is_a_stub_and_writes_nothing(
+PROFILE = {
+    "goal": "maintenance",
+    "height_cm": 180,
+    "age": 32,
+    "sex": "male",
+    "weight_unit": "kg",
+    "theme": "light",
+}
+
+SCAN = {
+    "measured_on": "2026-10-26",
+    "weight_kg": 80,
+    "smm_kg": 40,
+    "bfm_kg": 16,
+    "pbf_percent": 20,
+    "tbw_l": 48,
+    "visceral_fat_level": 4,
+    "bmr_kcal": 1700,
+}
+
+
+async def test_macro_target_stays_empty_without_a_scan(
     client: AsyncClient, db_session: AsyncSession
 ) -> None:
     await _register(client, "owner@example.com")
     await client.put("/api/nutrition/intake", json=INTAKE)
     before = await db_session.scalar(select(func.count()).select_from(NutritionIntake))
 
-    # Вызов target_macros из загрузки замера появится на этапе 4, не в этом маршруте.
-    assert "target_macros(" not in inspect.getsource(nutrition_api)
-
-    for _ in range(2):
-        response = await client.get("/api/nutrition/targets")
-        assert response.status_code == 200
-        assert response.json() == STUB_TARGET
+    response = await client.get("/api/nutrition/targets")
+    assert response.status_code == 200
+    assert response.json() == STUB_TARGET
 
     after = await db_session.scalar(select(func.count()).select_from(NutritionIntake))
     assert after == before == 1
-    intake = await client.get("/api/nutrition/intake")
-    assert intake.json() == {**INTAKE, "calories": 1650}
+
+
+async def test_macro_target_without_a_goal_explains_why(client: AsyncClient) -> None:
+    await _register(client, "owner@example.com")
+    created = await client.post("/api/inbody", json=SCAN)
+    assert created.status_code == 201, created.text
+
+    response = await client.get("/api/nutrition/targets")
+    assert response.status_code == 200
+    assert response.json()["available"] is False
+    assert response.json()["reason"] == "не выбрана цель"
+    assert response.json()["calories"] is None
+
+
+async def test_macro_target_uses_the_latest_scan_and_profile_goal(client: AsyncClient) -> None:
+    await _register(client, "owner@example.com")
+    saved = await client.put("/api/profile", json=PROFILE)
+    assert saved.status_code == 200, saved.text
+    created = await client.post("/api/inbody", json=SCAN)
+    assert created.status_code == 201, created.text
+    earlier = {**SCAN, "measured_on": "2026-10-01", "weight_kg": 70, "pbf_percent": 18}
+    assert (await client.post("/api/inbody", json=earlier)).status_code == 201
+
+    response = await client.get("/api/nutrition/targets")
+    assert response.status_code == 200
+    # Последний по дате замер — 80 кг и 20% жира. Числа совпадают с test_nutrition_logic.
+    assert response.json() == {
+        "available": True,
+        "reason": None,
+        "protein_g": 128,
+        "fat_g": 80,
+        "carbs_g": 349.3,
+        "calories": 2629,
+    }
+
+    await client.post("/api/auth/logout")
+    await _register(client, "other@example.com")
+    hidden = await client.get("/api/nutrition/targets")
+    assert hidden.status_code == 200
+    assert hidden.json() == STUB_TARGET

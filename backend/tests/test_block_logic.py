@@ -94,6 +94,55 @@ def test_slot_ids_are_stable_and_unique_per_day() -> None:
     assert first[0].id != first[1].id
 
 
+def test_six_day_cycle_keeps_the_rest_gap_into_the_deload() -> None:
+    weeks = [
+        {**_week(1, rep_min=8, rep_max=12, rir=2, volume=1.0), "week_type": "hypertrophy"},
+        {**_week(2, rep_min=8, rep_max=12, rir=4, volume=0.5), "week_type": "deload"},
+    ]
+    schedule = []
+    for index in range(6):
+        if index % 2 == 0:
+            schedule.append(
+                {"day_index": index, "kind": "workout", "name": "A", "items": [_item(1)]}
+            )
+        else:
+            schedule.append({"day_index": index, "kind": "rest", "name": None, "items": []})
+
+    slots = build_slots(PLACEMENT, MON, 2, weeks, schedule, cycle_days=6)
+
+    workouts = [slot for slot in slots if slot.kind == "workout"]
+    assert [slot.date for slot in workouts] == [
+        dt.date(2026, 11, 2),
+        dt.date(2026, 11, 4),
+        dt.date(2026, 11, 6),
+        dt.date(2026, 11, 8),
+        dt.date(2026, 11, 10),
+        dt.date(2026, 11, 12),
+    ]
+    assert workouts[2].items[0]["sets"][0]["target_rir"] == 2
+    assert workouts[3].items[0]["sets"][0]["target_rir"] == 4
+    assert block_end(MON, 2, 6) == dt.date(2026, 11, 13)
+
+    later = build_slots(
+        PLACEMENT,
+        MON,
+        2,
+        weeks,
+        schedule,
+        cycle_days=6,
+        repeats=True,
+        window=(dt.date(2026, 11, 14), dt.date(2026, 11, 19)),
+    )
+    later_workouts = [slot for slot in later if slot.kind == "workout"]
+    assert [slot.date for slot in later_workouts] == [
+        dt.date(2026, 11, 14),
+        dt.date(2026, 11, 16),
+        dt.date(2026, 11, 18),
+    ]
+    assert later_workouts[0].items[0]["sets"][0]["target_rir"] == 2
+    assert later_workouts[0].day_offset == 12
+
+
 def test_block_end_is_the_last_day_of_whole_weeks() -> None:
     assert block_end(MON, 1) == dt.date(2026, 11, 8)
     assert block_end(MON, 4) == dt.date(2026, 11, 29)

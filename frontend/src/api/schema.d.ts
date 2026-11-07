@@ -161,40 +161,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/exercises/{exercise_id}/archive": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Archive User Exercise */
-        post: operations["archive_user_exercise_api_exercises__exercise_id__archive_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/exercises/{exercise_id}/restore": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Restore User Exercise */
-        post: operations["restore_user_exercise_api_exercises__exercise_id__restore_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/workouts": {
         parameters: {
             query?: never;
@@ -568,12 +534,85 @@ export interface paths {
         };
         /**
          * Read Macro Target
-         * @description Цель недоступна, пока нет замера InBody. Эндпоинт ничего не создаёт и не меняет.
-         *
-         *     На этапе 4 после сохранения замера здесь вызывается target_macros, и заглушка
-         *     заменяется посчитанными граммами и калориями. Сейчас этот вызов не подключён.
+         * @description Цель по последнему замеру. Без замера или цели отдаёт причину и ничего не записывает.
          */
         get: operations["read_macro_target_api_nutrition_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/inbody": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List User Scans */
+        get: operations["list_user_scans_api_inbody_get"];
+        put?: never;
+        /** Create User Scan */
+        post: operations["create_user_scan_api_inbody_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/inbody/parse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Parse User Sheet
+         * @description Читает PDF и возвращает цифры. Строку замера не создаёт.
+         */
+        post: operations["parse_user_sheet_api_inbody_parse_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/inbody/{scan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update User Scan */
+        put: operations["update_user_scan_api_inbody__scan_id__put"];
+        post?: never;
+        /** Delete User Scan */
+        delete: operations["delete_user_scan_api_inbody__scan_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Recommendations
+         * @description Считает выводы по своим данным и ничего не записывает.
+         */
+        get: operations["read_recommendations_api_recommendations_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -745,6 +784,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/blocks/placements/{placement_id}/repeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Repeat User Placement */
+        post: operations["repeat_user_placement_api_blocks_placements__placement_id__repeat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/blocks/placements/{placement_id}": {
         parameters: {
             query?: never;
@@ -836,9 +892,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** BasisItem */
+        BasisItem: {
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
         /**
          * BlockApplyRequest
-         * @description Дата, с которой блок начинается: первый день первой недели.
+         * @description Дата, с которой блок начинается: первый день первого цикла.
+         *
+         *     `repeats` продолжает циклы по кругу без даты конца.
          */
         BlockApplyRequest: {
             /**
@@ -846,14 +911,24 @@ export interface components {
              * Format: date
              */
             start_date: string;
+            /**
+             * Repeats
+             * @default false
+             */
+            repeats: boolean;
         };
         /**
          * BlockInput
-         * @description Полная замена блока: название, недели и расписание дней недели.
+         * @description Полная замена блока: название, циклы и расписание дней цикла.
          */
         BlockInput: {
             /** Name */
             name: string;
+            /**
+             * Cycle Days
+             * @default 7
+             */
+            cycle_days: number;
             /** Weeks */
             weeks: components["schemas"]["BlockWeekInput"][];
             /** Schedule */
@@ -870,6 +945,8 @@ export interface components {
             name: string;
             /** Length Weeks */
             length_weeks: number;
+            /** Cycle Days */
+            cycle_days: number;
             /** Weeks */
             weeks: components["schemas"]["BlockWeekResponse"][];
             /** Schedule */
@@ -877,7 +954,7 @@ export interface components {
         };
         /**
          * BlockScheduleInput
-         * @description День недели блока: тренировка из библиотеки или отдых. Пустой день не задаётся.
+         * @description День цикла: тренировка из библиотеки или отдых. Пустой день не задаётся.
          */
         BlockScheduleInput: {
             /** Day Index */
@@ -942,6 +1019,11 @@ export interface components {
             /** Volume Multiplier */
             volume_multiplier: number;
         };
+        /** Body_parse_user_sheet_api_inbody_parse_post */
+        Body_parse_user_sheet_api_inbody_parse_post: {
+            /** File */
+            file: string;
+        };
         /** DeleteAccountRequest */
         DeleteAccountRequest: {
             /** Password */
@@ -984,8 +1066,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Archived */
-            archived: boolean;
         };
         /**
          * ExerciseHistory
@@ -1138,8 +1218,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Archived */
-            archived: boolean;
         };
         /**
          * ExportDocument
@@ -1169,6 +1247,8 @@ export interface components {
             performed_workouts: components["schemas"]["PerformedWorkoutExport"][];
             /** Progression Decisions */
             progression_decisions?: components["schemas"]["ProgressionDecisionExport"][];
+            /** Inbody Scans */
+            inbody_scans?: components["schemas"]["InbodyScanExport"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -1185,6 +1265,122 @@ export interface components {
             planned_workouts: number;
             /** Performed Workouts */
             performed_workouts: number;
+        };
+        /**
+         * InbodyParseResponse
+         * @description Цифры с листа. Пустые поля — то, что в PDF не нашлось. Замер этим ответом не создаётся.
+         */
+        InbodyParseResponse: {
+            /** Measured On */
+            measured_on: string | null;
+            /** Measured Time */
+            measured_time: string | null;
+            /** Weight Kg */
+            weight_kg: number | null;
+            /** Smm Kg */
+            smm_kg: number | null;
+            /** Bfm Kg */
+            bfm_kg: number | null;
+            /** Pbf Percent */
+            pbf_percent: number | null;
+            /** Tbw L */
+            tbw_l: number | null;
+            /** Visceral Fat Level */
+            visceral_fat_level: number | null;
+            /** Bmr Kcal */
+            bmr_kcal: number | null;
+            /** Missing */
+            missing: string[];
+        };
+        /**
+         * InbodyScanExport
+         * @description Старые файлы несут отметки условий. При импорте они отбрасываются.
+         */
+        InbodyScanExport: {
+            /**
+             * Measured On
+             * Format: date
+             */
+            measured_on: string;
+            /** Measured Time */
+            measured_time?: string | null;
+            /** Weight Kg */
+            weight_kg: number;
+            /** Smm Kg */
+            smm_kg: number;
+            /** Bfm Kg */
+            bfm_kg: number;
+            /** Pbf Percent */
+            pbf_percent: number;
+            /** Tbw L */
+            tbw_l: number;
+            /** Visceral Fat Level */
+            visceral_fat_level: number;
+            /** Bmr Kcal */
+            bmr_kcal: number;
+            segments?: components["schemas"]["Segments"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /** InbodyScanInput */
+        InbodyScanInput: {
+            /**
+             * Measured On
+             * Format: date
+             */
+            measured_on: string;
+            /** Measured Time */
+            measured_time?: string | null;
+            /** Weight Kg */
+            weight_kg: number;
+            /** Smm Kg */
+            smm_kg: number;
+            /** Bfm Kg */
+            bfm_kg: number;
+            /** Pbf Percent */
+            pbf_percent: number;
+            /** Tbw L */
+            tbw_l: number;
+            /** Visceral Fat Level */
+            visceral_fat_level: number;
+            /** Bmr Kcal */
+            bmr_kcal: number;
+            segments?: components["schemas"]["Segments"] | null;
+        };
+        /** InbodyScanResponse */
+        InbodyScanResponse: {
+            /**
+             * Measured On
+             * Format: date
+             */
+            measured_on: string;
+            /** Measured Time */
+            measured_time?: string | null;
+            /** Weight Kg */
+            weight_kg: number;
+            /** Smm Kg */
+            smm_kg: number;
+            /** Bfm Kg */
+            bfm_kg: number;
+            /** Pbf Percent */
+            pbf_percent: number;
+            /** Tbw L */
+            tbw_l: number;
+            /** Visceral Fat Level */
+            visceral_fat_level: number;
+            /** Bmr Kcal */
+            bmr_kcal: number;
+            segments?: components["schemas"]["Segments"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Deltas */
+            deltas: components["schemas"]["MetricDeltaResponse"][];
         };
         /** IntakeResponse */
         IntakeResponse: {
@@ -1245,6 +1441,23 @@ export interface components {
             carbs_g: number | null;
             /** Calories */
             calories: number | null;
+        };
+        /** MetricDeltaResponse */
+        MetricDeltaResponse: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "weight_kg" | "smm_kg" | "bfm_kg" | "pbf_percent" | "tbw_l" | "visceral_fat_level";
+            /** Absolute */
+            absolute: number;
+            /** Relative Percent */
+            relative_percent: number | null;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "kg" | "l" | "pp" | "level";
         };
         /**
          * MuscleVolumeGroup
@@ -1467,16 +1680,17 @@ export interface components {
             name: string;
             /** Length Weeks */
             length_weeks: number;
+            /** Cycle Days */
+            cycle_days: number;
+            /** Repeats */
+            repeats: boolean;
             /**
              * Start Date
              * Format: date
              */
             start_date: string;
-            /**
-             * End Date
-             * Format: date
-             */
-            end_date: string;
+            /** End Date */
+            end_date: string | null;
         };
         /**
          * PlanBlockChange
@@ -1500,16 +1714,10 @@ export interface components {
              * Format: date
              */
             start_after: string;
-            /**
-             * End Before
-             * Format: date
-             */
-            end_before: string;
-            /**
-             * End After
-             * Format: date
-             */
-            end_after: string;
+            /** End Before */
+            end_before: string | null;
+            /** End After */
+            end_after: string | null;
         };
         /** PlanChangeBlockExport */
         PlanChangeBlockExport: {
@@ -2042,6 +2250,25 @@ export interface components {
             /** Week Type */
             week_type: ("high_reps" | "hypertrophy" | "strength" | "deload" | "free") | null;
         };
+        /** RecommendationItem */
+        RecommendationItem: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "low_protein" | "low_fat" | "insufficient_scans" | "trend_keep" | "trend_surplus" | "trend_reduce" | "trend_ease_deficit" | "guard_low_calories" | "guard_fast_loss" | "guard_low_body_fat" | "no_intake";
+            /** Text */
+            text: string;
+            /** Basis */
+            basis: components["schemas"]["BasisItem"][];
+        };
+        /** RecommendationsResponse */
+        RecommendationsResponse: {
+            /** Items */
+            items: components["schemas"]["RecommendationItem"][];
+            /** Disclaimer */
+            disclaimer: string;
+        };
         /** RegisterRequest */
         RegisterRequest: {
             /**
@@ -2051,6 +2278,24 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /**
+         * SegmentPart
+         * @description Килограммы мышц и жира одного сегмента. Оба числа необязательны.
+         */
+        SegmentPart: {
+            /** Muscle Kg */
+            muscle_kg?: number | null;
+            /** Fat Kg */
+            fat_kg?: number | null;
+        };
+        /** Segments */
+        Segments: {
+            right_arm?: components["schemas"]["SegmentPart"] | null;
+            left_arm?: components["schemas"]["SegmentPart"] | null;
+            trunk?: components["schemas"]["SegmentPart"] | null;
+            right_leg?: components["schemas"]["SegmentPart"] | null;
+            left_leg?: components["schemas"]["SegmentPart"] | null;
         };
         /**
          * SetCreate
@@ -2344,8 +2589,6 @@ export interface components {
              * @enum {string}
              */
             equipment: "barbell" | "dumbbell" | "machine" | "cable" | "bodyweight";
-            /** Archived */
-            archived: boolean;
         };
         /** WorkoutItemInput */
         WorkoutItemInput: {
@@ -2675,7 +2918,6 @@ export interface operations {
     list_user_exercises_api_exercises_get: {
         parameters: {
             query?: {
-                include_archived?: boolean;
                 q?: string | null;
             };
             header?: never;
@@ -2863,72 +3105,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    archive_user_exercise_api_exercises__exercise_id__archive_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                exercise_id: string;
-            };
-            cookie?: {
-                session_id?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExerciseResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    restore_user_exercise_api_exercises__exercise_id__restore_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                exercise_id: string;
-            };
-            cookie?: {
-                session_id?: string | null;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ExerciseResponse"];
-                };
             };
             /** @description Validation Error */
             422: {
@@ -3939,6 +4115,206 @@ export interface operations {
             };
         };
     };
+    list_user_scans_api_inbody_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InbodyScanResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_user_scan_api_inbody_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InbodyScanInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InbodyScanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    parse_user_sheet_api_inbody_parse_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_parse_user_sheet_api_inbody_parse_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InbodyParseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_user_scan_api_inbody__scan_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scan_id: string;
+            };
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InbodyScanInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InbodyScanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_user_scan_api_inbody__scan_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scan_id: string;
+            };
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_recommendations_api_recommendations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_hint_api_progression__exercise_id__get: {
         parameters: {
             query?: never;
@@ -4261,6 +4637,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlacementResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    repeat_user_placement_api_blocks_placements__placement_id__repeat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                placement_id: string;
+            };
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacementResponse"];
                 };
             };
             /** @description Validation Error */

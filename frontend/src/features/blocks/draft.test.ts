@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  draftFromBlock,
   draftToInput,
   emptyBlockDraft,
   emptyWeekDraft,
   MAX_BLOCK_WEEKS,
+  resizeBlockWeeks,
+  resizeCycleDays,
   REST_CHOICE,
 } from "./draft";
 
@@ -16,6 +19,72 @@ function filledDraft() {
   draft.schedule[2] = REST_CHOICE;
   return draft;
 }
+
+describe("resizeBlockWeeks", () => {
+  it("дописывает копии последней недели и обрезает хвост", () => {
+    const first = emptyWeekDraft();
+    first.weekType = "strength";
+    first.repMin = "3";
+    const grown = resizeBlockWeeks([first], 3);
+
+    expect(grown).toHaveLength(3);
+    expect(grown[0]).toBe(first);
+    expect(grown[1].weekType).toBe("strength");
+    expect(grown[1].repMin).toBe("3");
+    expect(grown[1].key).not.toBe(first.key);
+    expect(resizeBlockWeeks(grown, 1)).toEqual([first]);
+    expect(resizeBlockWeeks(grown, 0)).toHaveLength(1);
+    expect(resizeBlockWeeks(grown, 99)).toHaveLength(MAX_BLOCK_WEEKS);
+  });
+});
+
+describe("resizeCycleDays", () => {
+  it("обрезает хвост и добавляет пустые дни", () => {
+    expect(resizeCycleDays(["a", "b", "c"], 2)).toEqual(["a", "b"]);
+    expect(resizeCycleDays(["a"], 3)).toEqual(["a", "", ""]);
+    expect(resizeCycleDays(["a"], 0)).toEqual(["a"]);
+  });
+});
+
+describe("draftFromBlock", () => {
+  it("раскладывает недели по порядку и восстанавливает дни расписания", () => {
+    const draft = draftFromBlock({
+      id: "b",
+      name: "Масса",
+      length_weeks: 2,
+      cycle_days: 7,
+      weeks: [
+        {
+          position: 2,
+          week_type: "deload",
+          rep_min: 6,
+          rep_max: 8,
+          target_rir: 4,
+          volume_multiplier: 0.5,
+        },
+        {
+          position: 1,
+          week_type: "hypertrophy",
+          rep_min: 8,
+          rep_max: 12,
+          target_rir: 2,
+          volume_multiplier: 1,
+        },
+      ],
+      schedule: [
+        { day_index: 0, kind: "workout", name: "Верх", template_id: TEMPLATE_ID },
+        { day_index: 6, kind: "rest", name: null, template_id: null },
+      ],
+    });
+
+    expect(draft.name).toBe("Масса");
+    expect(draft.weeks.map((week) => week.weekType)).toEqual(["hypertrophy", "deload"]);
+    expect(draft.weeks[1].volumeMultiplier).toBe("0.5");
+    expect(draft.schedule[0]).toBe(TEMPLATE_ID);
+    expect(draft.schedule[1]).toBe("");
+    expect(draft.schedule[6]).toBe(REST_CHOICE);
+  });
+});
 
 describe("draftToInput", () => {
   it("собирает тело запроса с числами и обрезанным названием", () => {
@@ -33,6 +102,7 @@ describe("draftToInput", () => {
             volume_multiplier: 1,
           },
         ],
+        cycle_days: 7,
         schedule: [
           { day_index: 0, kind: "workout", template_id: TEMPLATE_ID },
           { day_index: 2, kind: "rest", template_id: null },
@@ -60,7 +130,7 @@ describe("draftToInput", () => {
     const draft = filledDraft();
     draft.weeks[0] = { ...emptyWeekDraft(), repMin: "15", repMax: "10" };
     expect(draftToInput(draft)).toEqual({
-      error: "Неделя 1: нижняя граница повторов больше верхней",
+      error: "Цикл 1: нижняя граница повторов больше верхней",
     });
   });
 
@@ -72,7 +142,7 @@ describe("draftToInput", () => {
 
     draft.weeks[0] = { ...emptyWeekDraft(), volumeMultiplier: "0" };
     expect(draftToInput(draft)).toEqual({
-      error: "Неделя 1: множитель объёма больше 0 и не больше 1",
+      error: "Цикл 1: множитель объёма больше 0 и не больше 1",
     });
   });
 

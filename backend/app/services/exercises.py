@@ -16,15 +16,12 @@ async def list_exercises(
     db: AsyncSession,
     user_id: uuid.UUID,
     *,
-    include_archived: bool = False,
     query: str | None = None,
 ) -> Sequence[Exercise]:
     stmt = select(Exercise).where(Exercise.user_id == user_id)
-    if not include_archived:
-        stmt = stmt.where(Exercise.archived.is_(False))
     if query:
         stmt = stmt.where(Exercise.name.ilike(f"%{_escape_like(query.strip())}%", escape="\\"))
-    stmt = stmt.order_by(Exercise.archived, func.lower(Exercise.name))
+    stmt = stmt.order_by(func.lower(Exercise.name))
     result = await db.scalars(stmt)
     return result.all()
 

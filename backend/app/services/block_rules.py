@@ -11,6 +11,10 @@ from dataclasses import dataclass
 from typing import Any
 
 DAYS_IN_WEEK = 7
+# Поиск открытой тренировки бесконечного блока: дальше этого горизонта id не ищем.
+REPEAT_LOOKUP_DAYS = 366 * 20
+# При применении проверяем пересечение с уже стоящим планом на этот срок вперёд.
+REPEAT_CONFLICT_DAYS = 366 * 2
 # Пространство имён для стабильных id тренировок блока.
 _SLOT_NAMESPACE = uuid.UUID("6f1d0c7e-3a52-4f63-9b1e-2c8d5a7e4b10")
 
@@ -61,22 +65,46 @@ def build_slots(
     length_weeks: int,
     weeks: list[dict[str, Any]],
     schedule: list[dict[str, Any]],
+    cycle_days: int = DAYS_IN_WEEK,
+    *,
+    repeats: bool = False,
+    window: tuple[dt.date, dt.date] | None = None,
 ) -> list[Slot]:
-    """Все слоты блока: по одному на каждый день расписания в каждой неделе.
+    """Слоты блока: по одному на каждый день расписания.
 
-    `weeks` и `schedule` — снимки из размещения. Неделя с номером `i` берёт параметры
-    `weeks[i]`, день расписания сопоставляется по `day_index`.
+    `weeks` и `schedule` — снимки из размещения. День расписания сопоставляется по
+    `day_index` внутри цикла. Без `repeats` цикл с номером `i` берёт `weeks[i]` и
+    слоты кончаются вместе с блоком. С `repeats` те же циклы идут по кругу, а `window`
+    ограничивает даты, которые нужно посчитать.
     """
+    if cycle_days < 1 or length_weeks < 1 or not weeks:
+        return []
     by_day = {item["day_index"]: item for item in schedule}
+    span = length_weeks * cycle_days
+    first = 0
+    last = span - 1
+    if repeats and window is not None:
+        first = max(0, (window[0] - start).days)
+        last = (window[1] - start).days
+    elif window is not None:
+        first = max(first, (window[0] - start).days)
+        last = min(last, (window[1] - start).days)
+    if last < first:
+        return []
     slots: list[Slot] = []
-    for offset in range(length_weeks * DAYS_IN_WEEK):
-        item = by_day.get(offset % DAYS_IN_WEEK)
+    for offset in range(first, last + 1):
+        item = by_day.get(offset % cycle_days)
         if item is None:
+            continue
+        week_index = offset // cycle_days
+        if repeats:
+            week_index %= len(weeks)
+        elif week_index >= len(weeks):
             continue
         if item["kind"] == "rest":
             items: list[dict[str, Any]] = []
         else:
-            items = apply_week(item["items"], weeks[offset // DAYS_IN_WEEK])
+            items = apply_week(item["items"], weeks[week_index])
         slots.append(
             Slot(
                 placement_id=placement_id,
@@ -91,6 +119,6 @@ def build_slots(
     return slots
 
 
-def block_end(start: dt.date, length_weeks: int) -> dt.date:
-    """Последний день исходной длины блока: старт плюс недели без одного дня."""
-    return start + dt.timedelta(days=length_weeks * DAYS_IN_WEEK - 1)
+def block_end(start: dt.date, length_weeks: int, cycle_days: int = DAYS_IN_WEEK) -> dt.date:
+    """Последний день блока: старт плюс циклы заданной длины без одного дня."""
+    return start + dt.timedelta(days=length_weeks * cycle_days - 1)

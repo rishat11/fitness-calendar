@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type TodayEntry } from "../api/client";
 import { TodayPage } from "./TodayPage";
+import { todayIso } from "../features/calendar/dates";
 
 const USER = { id: "u1", email: "a@example.com", created_at: "2026-01-01T00:00:00Z" };
 
@@ -73,11 +74,13 @@ describe("TodayPage", () => {
   let entries: TodayEntry[];
   let exportReminder = false;
   let progression: unknown = null;
+  let inbody: { measured_on: string }[] = [{ measured_on: todayIso() }];
 
   beforeEach(() => {
     entries = [workout()];
     exportReminder = false;
     progression = null;
+    inbody = [{ measured_on: todayIso() }];
     localStorage.clear();
     vi.stubGlobal(
       "fetch",
@@ -90,6 +93,7 @@ describe("TodayPage", () => {
         if (path === "/api/plan") return jsonResponse(entries);
         if (path === "/api/plan/shift/history") return jsonResponse([]);
         if (path.startsWith("/api/progression/")) return jsonResponse(progression);
+        if (path === "/api/inbody") return jsonResponse(inbody);
         return jsonResponse({ detail: "Не найдено" }, 404);
       }),
     );
@@ -163,6 +167,7 @@ describe("TodayPage", () => {
 
     expect(screen.getByRole("region", { name: "Сдвиг плана" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Эта и следующие" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Поменять местами" })).not.toBeInTheDocument();
   });
 
   it("reminds to export and hides the reminder for this account", async () => {
@@ -177,5 +182,19 @@ describe("TodayPage", () => {
 
     expect(screen.queryByRole("status", { name: "Резервная копия" })).not.toBeInTheDocument();
     expect(localStorage.getItem("fitness-calendar.export-reminder-hidden-until.u1")).toBeTruthy();
+  });
+
+  it("reminds about InBody and hides the banner for a week", async () => {
+    inbody = [];
+    const user = userEvent.setup();
+    renderToday();
+
+    expect(await screen.findByRole("status", { name: "Замер InBody" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Открыть InBody" })).toHaveAttribute("href", "/inbody");
+
+    await user.click(screen.getByRole("button", { name: "Не сейчас" }));
+
+    expect(screen.queryByRole("status", { name: "Замер InBody" })).not.toBeInTheDocument();
+    expect(localStorage.getItem("fitness-calendar.inbody-reminder-hidden-until.u1")).toBeTruthy();
   });
 });

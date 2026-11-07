@@ -177,14 +177,7 @@ export function ExerciseCardPage() {
     <div className="flex max-w-3xl flex-col gap-6">
       {back}
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">
-          {exercise.data.name}
-          {exercise.data.archived && (
-            <span className="ml-2 rounded bg-slate-200 px-2 py-0.5 text-xs font-normal text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              В архиве
-            </span>
-          )}
-        </h1>
+        <h1 className="text-2xl font-semibold">{exercise.data.name}</h1>
         <ExerciseFacts exercise={exercise.data} />
       </header>
 

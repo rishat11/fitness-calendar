@@ -15,7 +15,6 @@ const inputClass =
 
 type EntryPanelProps = {
   entry: PlanEntry;
-  swapCandidates: PlanEntry[];
   onClose: () => void;
   /** Вызывается с актуальной записью из ответа сервера, чтобы родитель помнил её даже вне текущего диапазона. */
   onUpdated?: (entry: PlanEntry) => void;
@@ -23,7 +22,7 @@ type EntryPanelProps = {
 };
 
 /** Действия над записью: статус, перенос на дату, фиксация, удаление. */
-export function EntryPanel({ entry, swapCandidates, onClose, onUpdated, onShifted }: EntryPanelProps) {
+export function EntryPanel({ entry, onClose, onUpdated, onShifted }: EntryPanelProps) {
   const update = useUpdatePlanEntry();
   const remove = useDeletePlanEntry();
   const [newDate, setNewDate] = useState(entry.date);
@@ -128,11 +127,7 @@ export function EntryPanel({ entry, swapCandidates, onClose, onUpdated, onShifte
         Фиксированная: не двигается при сдвиге плана
       </label>
 
-      <PlanShiftPanel
-        entry={entry}
-        swapCandidates={swapCandidates}
-        onApplied={(changes) => onShifted?.(changes)}
-      />
+      <PlanShiftPanel entry={entry} onApplied={(changes) => onShifted?.(changes)} />
 
       <div className="flex flex-wrap items-center gap-2">
         {confirmingDelete ? (

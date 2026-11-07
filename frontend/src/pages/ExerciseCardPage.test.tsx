@@ -26,7 +26,6 @@ const BENCH = {
   weight_step: 2.5,
   rep_min: 8,
   rep_max: 12,
-  archived: false,
 };
 
 const SQUAT = {

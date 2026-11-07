@@ -77,7 +77,6 @@ class ExerciseResponse(ExerciseInput):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    archived: bool
 
 
 class ExerciseHistorySet(BaseModel):

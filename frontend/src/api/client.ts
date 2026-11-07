@@ -11,6 +11,11 @@ export type ProfileUpdate = components["schemas"]["ProfileUpdate"];
 export type NutritionIntake = components["schemas"]["IntakeResponse"];
 export type NutritionIntakeUpdate = components["schemas"]["IntakeUpdate"];
 export type NutritionTarget = components["schemas"]["MacroTargetResponse"];
+export type InbodyScan = components["schemas"]["InbodyScanResponse"];
+export type InbodyScanInput = components["schemas"]["InbodyScanInput"];
+export type InbodyDelta = components["schemas"]["MetricDeltaResponse"];
+export type InbodyParse = components["schemas"]["InbodyParseResponse"];
+export type Recommendations = components["schemas"]["RecommendationsResponse"];
 export type Exercise = components["schemas"]["ExerciseResponse"];
 export type ExerciseInput = components["schemas"]["ExerciseInput"];
 export type ExerciseHistory = components["schemas"]["ExerciseHistory"];
@@ -56,7 +61,6 @@ export type ExportDocument = components["schemas"]["ExportDocument"];
 export type ImportResult = components["schemas"]["ImportResult"];
 
 export type ExerciseListParams = {
-  includeArchived?: boolean;
   q?: string;
 };
 
@@ -80,9 +84,9 @@ export function sendJson(path: string, method: string, body: unknown): Promise<u
   });
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}, jsonBody = true): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body !== undefined) {
+  if (jsonBody && init.body !== undefined) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -150,13 +154,36 @@ export const api = {
 
   getNutritionTarget: () => request<NutritionTarget>("/api/nutrition/targets"),
 
+  listInbody: () => request<InbodyScan[]>("/api/inbody"),
+
+  parseInbodyPdf: (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return request<InbodyParse>("/api/inbody/parse", { method: "POST", body }, false);
+  },
+
+  createInbody: (body: InbodyScanInput) =>
+    request<InbodyScan>("/api/inbody", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateInbody: (id: string, body: InbodyScanInput) =>
+    request<InbodyScan>(`/api/inbody/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  deleteInbody: (id: string) => request<void>(`/api/inbody/${id}`, { method: "DELETE" }),
+
+  getRecommendations: () => request<Recommendations>("/api/recommendations"),
+
   getExercise: (id: string) => request<Exercise>(`/api/exercises/${id}`),
 
   exerciseHistory: (id: string) => request<ExerciseHistory>(`/api/exercises/${id}/history`),
 
-  listExercises: ({ includeArchived = false, q }: ExerciseListParams = {}) => {
+  listExercises: ({ q }: ExerciseListParams = {}) => {
     const search = new URLSearchParams();
-    if (includeArchived) search.set("include_archived", "true");
     if (q) search.set("q", q);
     const query = search.toString();
     return request<Exercise[]>(`/api/exercises${query ? `?${query}` : ""}`);
@@ -175,10 +202,6 @@ export const api = {
     }),
 
   deleteExercise: (id: string) => request<void>(`/api/exercises/${id}`, { method: "DELETE" }),
-
-  archiveExercise: (id: string) => request<Exercise>(`/api/exercises/${id}/archive`, { method: "POST" }),
-
-  restoreExercise: (id: string) => request<Exercise>(`/api/exercises/${id}/restore`, { method: "POST" }),
 
   listWorkouts: () => request<Workout[]>("/api/workouts"),
 
@@ -285,15 +308,24 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  updateBlock: (id: string, body: BlockInput) =>
+    request<Block>(`/api/blocks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
   copyBlock: (id: string) => request<Block>(`/api/blocks/${id}/copy`, { method: "POST" }),
 
   deleteBlock: (id: string) => request<void>(`/api/blocks/${id}`, { method: "DELETE" }),
 
-  applyBlock: (id: string, startDate: string) =>
+  applyBlock: (id: string, startDate: string, repeats = false) =>
     request<BlockPlacement>(`/api/blocks/${id}/apply`, {
       method: "POST",
-      body: JSON.stringify({ start_date: startDate }),
+      body: JSON.stringify({ start_date: startDate, repeats }),
     }),
+
+  repeatBlockPlacement: (id: string) =>
+    request<BlockPlacement>(`/api/blocks/placements/${id}/repeat`, { method: "POST" }),
 
   listBlockPlacements: () => request<BlockPlacement[]>("/api/blocks/placements"),
 

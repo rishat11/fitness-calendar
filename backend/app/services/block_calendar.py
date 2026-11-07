@@ -15,17 +15,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.block import BlockPlacement
 from app.models.plan import KIND_WORKOUT, STATUS_PLANNED, PlannedWorkout
-from app.services.block_rules import Slot, build_slots
+from app.services.block_rules import REPEAT_LOOKUP_DAYS, Slot, build_slots
 
 
 @dataclass(frozen=True, slots=True)
 class PlacementSpan:
-    """Границы размещения блока на календаре: то, что двигает сдвиг."""
+    """Границы размещения блока на календаре: то, что двигает сдвиг.
+
+    `end is None` — блок без конца, циклы повторяются.
+    """
 
     id: uuid.UUID
     name: str
     start: dt.date
-    end: dt.date
+    end: dt.date | None
 
 
 async def load_placements(db: AsyncSession, user_id: uuid.UUID) -> list[BlockPlacement]:
@@ -37,13 +40,18 @@ async def load_placements(db: AsyncSession, user_id: uuid.UUID) -> list[BlockPla
     return list(result.all())
 
 
-def placement_slots(placement: BlockPlacement) -> list[Slot]:
+def placement_slots(
+    placement: BlockPlacement, window: tuple[dt.date, dt.date] | None = None
+) -> list[Slot]:
     return build_slots(
         placement.id,
         placement.start_date,
         placement.length_weeks,
         list(placement.weeks_snapshot),
         list(placement.schedule_snapshot),
+        placement.cycle_days,
+        repeats=placement.repeats,
+        window=window,
     )
 
 
@@ -69,8 +77,12 @@ async def open_slots(
         return []
     taken = await _materialized_keys(db, user_id)
     slots: list[Slot] = []
+    window = (start, end) if start is not None and end is not None else None
     for placement in placements:
-        for slot in placement_slots(placement):
+        # Без окна бесконечный блок не разворачиваем: иначе слотов нет конца.
+        if placement.repeats and window is None:
+            continue
+        for slot in placement_slots(placement, window):
             if (placement.id, slot.day_offset) in taken:
                 continue
             if start is not None and slot.date < start:
@@ -82,9 +94,40 @@ async def open_slots(
 
 
 async def find_open_slot(db: AsyncSession, user_id: uuid.UUID, entry_id: uuid.UUID) -> Slot | None:
-    for slot in await open_slots(db, user_id):
-        if slot.id == entry_id:
+    placements = await load_placements(db, user_id)
+    if not placements:
+        return None
+    taken = await _materialized_keys(db, user_id)
+    for placement in placements:
+        if placement.repeats:
+            slot = _repeating_slot(placement, entry_id, taken)
+        else:
+            slot = next(
+                (
+                    item
+                    for item in placement_slots(placement)
+                    if item.id == entry_id and (placement.id, item.day_offset) not in taken
+                ),
+                None,
+            )
+        if slot is not None:
             return slot
+    return None
+
+
+def _repeating_slot(
+    placement: BlockPlacement, entry_id: uuid.UUID, taken: set[tuple[uuid.UUID, int]]
+) -> Slot | None:
+    horizon = placement.start_date + dt.timedelta(days=REPEAT_LOOKUP_DAYS)
+    for offset in range(REPEAT_LOOKUP_DAYS):
+        if (placement.id, offset) in taken:
+            continue
+        day = placement.start_date + dt.timedelta(days=offset)
+        for slot in placement_slots(placement, (day, day)):
+            if slot.id == entry_id:
+                return slot
+        if day >= horizon:
+            break
     return None
 
 

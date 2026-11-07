@@ -10,7 +10,6 @@ from app.schemas.workout import (
     WorkoutTemplateResponse,
 )
 from app.services.workouts import (
-    ArchivedExerciseError,
     UnknownExerciseError,
     copy_template,
     create_template,
@@ -24,7 +23,6 @@ router = APIRouter(prefix="/api/workouts", tags=["workouts"])
 
 NOT_FOUND = "Тренировка не найдена"
 UNKNOWN_EXERCISE = "Упражнение не найдено в вашем справочнике"
-ARCHIVED_EXERCISE = "Упражнение в архиве. Восстановите его, чтобы добавить в тренировку"
 
 
 async def _owned_or_404(
@@ -50,8 +48,6 @@ async def create_user_workout(
         template = await create_template(db, user.id, body)
     except UnknownExerciseError:
         raise HTTPException(status_code=422, detail=UNKNOWN_EXERCISE) from None
-    except ArchivedExerciseError:
-        raise HTTPException(status_code=422, detail=ARCHIVED_EXERCISE) from None
     await db.commit()
     return template
 
@@ -72,8 +68,6 @@ async def update_user_workout(
         await replace_template(db, user.id, template, body)
     except UnknownExerciseError:
         raise HTTPException(status_code=422, detail=UNKNOWN_EXERCISE) from None
-    except ArchivedExerciseError:
-        raise HTTPException(status_code=422, detail=ARCHIVED_EXERCISE) from None
     await db.commit()
     return template
 
