@@ -87,6 +87,7 @@ const INCREASE = {
   weight_unit: "kg",
   last_session_id: "perf-old",
   epley_1rm: 140,
+  week_type: "hypertrophy",
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -168,6 +169,7 @@ describe("WorkoutLogPage", () => {
     const heading = within(exercise).getByRole("heading", { name: "Жим штанги лёжа" });
 
     expect(hint).toHaveTextContent("Повысьте вес на шаг упражнения");
+    expect(hint).toHaveTextContent("Тип недели: Гипертрофия");
     expect(hint).toHaveTextContent("102,5");
     expect(hint.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
@@ -178,6 +180,15 @@ describe("WorkoutLogPage", () => {
     await waitFor(() => {
       expect(within(exercise).queryByRole("region", { name: "Подсказка по прогрессии" })).toBeNull();
     });
+  });
+
+  it("does not show a week type for a workout outside a block", async () => {
+    progression = { ...INCREASE, week_type: null };
+    renderPage();
+    const hint = await screen.findByRole("region", { name: "Подсказка по прогрессии" });
+
+    expect(hint).toHaveTextContent("Повысьте вес на шаг упражнения");
+    expect(hint).not.toHaveTextContent("Тип недели");
   });
 
   it("shows the planned exercise and keeps the screen awake", async () => {

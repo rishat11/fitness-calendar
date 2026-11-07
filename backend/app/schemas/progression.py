@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.block import WeekType
 from app.schemas.profile import WeightUnit
 
 HintStatus = Literal["increase_weight", "continue", "stagnation"]
@@ -20,6 +21,8 @@ class ProgressionHintResponse(BaseModel):
     last_session_id: uuid.UUID
     # Расчётный 1ПМ лучшего рабочего подхода последней сессии. Не цель и не график.
     epley_1rm: float | None
+    # Тип недели, внутри которого посчитана подсказка. Пусто у тренировок вне блока.
+    week_type: WeekType | None
 
 
 class ProgressionDecisionWrite(BaseModel):
