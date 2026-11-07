@@ -327,13 +327,14 @@ function WorkoutEditor({ workout, initialEditing }: { workout: Workout; initialE
   const [saved, setSaved] = useState(false);
   // Ответ сохранения, пока запрос карточки ещё не обновился.
   const [preview, setPreview] = useState<Workout | null>(null);
+  const [previewWorkout, setPreviewWorkout] = useState(workout);
+  if (previewWorkout !== workout) {
+    setPreviewWorkout(workout);
+    setPreview(null);
+  }
   const update = useUpdateWorkout();
   const dirty = draftSignature(draft) !== savedSignature;
   const shown = preview ?? workout;
-
-  useEffect(() => {
-    setPreview(null);
-  }, [workout]);
 
   // Закрытие вкладки или обновление страницы: браузер покажет своё предупреждение.
   useEffect(() => {

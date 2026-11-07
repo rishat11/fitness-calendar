@@ -704,9 +704,11 @@ function WeightField({
   onChange: (value: number | null) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
-  useEffect(() => {
+  const [draftValue, setDraftValue] = useState(value);
+  if (draftValue !== value) {
+    setDraftValue(value);
     setDraft(null);
-  }, [value]);
+  }
   const shown = draft ?? (value == null ? "" : formatWeightInput(value));
   const commit = (raw: string) => {
     if (raw.trim() === "") onChange(null);
