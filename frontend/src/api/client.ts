@@ -48,6 +48,8 @@ export type BlockInput = components["schemas"]["BlockInput"];
 export type BlockWeekInput = components["schemas"]["BlockWeekInput"];
 export type BlockScheduleInput = components["schemas"]["BlockScheduleInput"];
 export type BlockPlacement = components["schemas"]["PlacementResponse"];
+export type DeloadSuggestion = components["schemas"]["DeloadSuggestionResponse"];
+export type DeloadAccept = components["schemas"]["DeloadAcceptResponse"];
 
 export type PerformedWorkout = components["schemas"]["PerformedWorkoutResponse"];
 export type PerformedItem = components["schemas"]["PerformedItemResponse"];
@@ -331,6 +333,14 @@ export const api = {
 
   removeBlockPlacement: (id: string) =>
     request<void>(`/api/blocks/placements/${id}`, { method: "DELETE" }),
+
+  deloadSuggestion: (placementId: string) =>
+    request<DeloadSuggestion>(`/api/blocks/placements/${placementId}/deload-suggestion`),
+
+  acceptDeload: (placementId: string) =>
+    request<DeloadAccept>(`/api/blocks/placements/${placementId}/deload-suggestion/accept`, {
+      method: "POST",
+    }),
 
   exportData: () => request<ExportDocument>("/api/export"),
 

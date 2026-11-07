@@ -818,6 +818,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/blocks/placements/{placement_id}/deload-suggestion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Deload Suggestion
+         * @description Предложение разгрузки. Ничего не записывает.
+         */
+        get: operations["read_deload_suggestion_api_blocks_placements__placement_id__deload_suggestion_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/blocks/placements/{placement_id}/deload-suggestion/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept Deload Suggestion */
+        post: operations["accept_deload_suggestion_api_blocks_placements__placement_id__deload_suggestion_accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/blocks/{block_id}": {
         parameters: {
             query?: never;
@@ -1028,6 +1065,55 @@ export interface components {
         DeleteAccountRequest: {
             /** Password */
             password: string;
+        };
+        /**
+         * DeloadAcceptResponse
+         * @description Текущая неделя размещения стала разгрузкой.
+         */
+        DeloadAcceptResponse: {
+            /**
+             * Placement Id
+             * Format: uuid
+             */
+            placement_id: string;
+            /** Week Position */
+            week_position: number;
+            /** Volume Multiplier */
+            volume_multiplier: number;
+            /** Target Rir */
+            target_rir: number;
+        };
+        /**
+         * DeloadReason
+         * @description Один признак усталости. Текст уже на русском, код нужен интерфейсу.
+         */
+        DeloadReason: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "low_rir" | "rep_drop" | "skips" | "stagnation" | "low_wellbeing";
+            /** Text */
+            text: string;
+        };
+        /**
+         * DeloadSuggestionResponse
+         * @description Предложение разгрузки. Само по себе неделю не меняет.
+         */
+        DeloadSuggestionResponse: {
+            /** Suggest */
+            suggest: boolean;
+            /**
+             * Placement Id
+             * Format: uuid
+             */
+            placement_id: string;
+            /** Week Position */
+            week_position?: number | null;
+            /** Message */
+            message: string;
+            /** Reasons */
+            reasons?: components["schemas"]["DeloadReason"][];
         };
         /** ExerciseExport */
         ExerciseExport: {
@@ -4702,6 +4788,72 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_deload_suggestion_api_blocks_placements__placement_id__deload_suggestion_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                placement_id: string;
+            };
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeloadSuggestionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_deload_suggestion_api_blocks_placements__placement_id__deload_suggestion_accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                placement_id: string;
+            };
+            cookie?: {
+                session_id?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeloadAcceptResponse"];
+                };
             };
             /** @description Validation Error */
             422: {

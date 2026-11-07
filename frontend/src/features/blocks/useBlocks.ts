@@ -96,3 +96,22 @@ export function useRemoveBlockPlacement() {
     },
   });
 }
+
+export function useDeloadSuggestion(placementId: string) {
+  return useQuery({
+    queryKey: [...BLOCKS_QUERY_KEY, "deload", placementId],
+    queryFn: () => api.deloadSuggestion(placementId),
+  });
+}
+
+/** Принятие меняет неделю в календаре, поэтому сбрасываем и план. */
+export function useAcceptDeload() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (placementId: string) => api.acceptDeload(placementId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: BLOCKS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: PLAN_QUERY_KEY });
+    },
+  });
+}

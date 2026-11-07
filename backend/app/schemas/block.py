@@ -118,3 +118,32 @@ class PlacementResponse(BaseModel):
     repeats: bool
     start_date: dt.date
     end_date: dt.date | None
+
+
+DeloadReasonCode = Literal["low_rir", "rep_drop", "skips", "stagnation", "low_wellbeing"]
+
+
+class DeloadReason(BaseModel):
+    """Один признак усталости. Текст уже на русском, код нужен интерфейсу."""
+
+    code: DeloadReasonCode
+    text: str
+
+
+class DeloadSuggestionResponse(BaseModel):
+    """Предложение разгрузки. Само по себе неделю не меняет."""
+
+    suggest: bool
+    placement_id: uuid.UUID
+    week_position: int | None = None
+    message: str
+    reasons: list[DeloadReason] = Field(default_factory=list)
+
+
+class DeloadAcceptResponse(BaseModel):
+    """Текущая неделя размещения стала разгрузкой."""
+
+    placement_id: uuid.UUID
+    week_position: int
+    volume_multiplier: float
+    target_rir: int

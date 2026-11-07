@@ -1,3 +1,4 @@
+import datetime as dt
 import uuid
 
 from fastapi import APIRouter, HTTPException, Response, status
@@ -8,6 +9,9 @@ from app.schemas.block import (
     BlockApplyRequest,
     BlockInput,
     BlockResponse,
+    DeloadAcceptResponse,
+    DeloadReason,
+    DeloadSuggestionResponse,
     PlacementResponse,
 )
 from app.services.block_calendar import load_placements
@@ -22,6 +26,13 @@ from app.services.blocks import (
     remove_placement,
     repeat_placement,
     replace_block,
+)
+from app.services.deload import (
+    DeloadError,
+    SuggestionView,
+    accept_early_deload,
+    get_placement,
+    suggestion_for,
 )
 
 router = APIRouter(prefix="/api/blocks", tags=["blocks"])
@@ -91,6 +102,58 @@ async def remove_user_placement(
     await remove_placement(db, user.id, placement)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+def _suggestion_response(view: SuggestionView) -> DeloadSuggestionResponse:
+    return DeloadSuggestionResponse(
+        suggest=view.suggest,
+        placement_id=view.placement_id,
+        week_position=view.week_position,
+        message=view.message,
+        reasons=[
+            DeloadReason(code=code, text=text)  # type: ignore[arg-type]
+            for code, text in view.reasons
+        ],
+    )
+
+
+@router.get(
+    "/placements/{placement_id}/deload-suggestion",
+    response_model=DeloadSuggestionResponse,
+)
+async def read_deload_suggestion(
+    placement_id: uuid.UUID, user: CurrentUser, db: DbSession
+) -> DeloadSuggestionResponse:
+    """Предложение разгрузки. Ничего не записывает."""
+    placement = await get_placement(db, user.id, placement_id)
+    if placement is None:
+        raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
+    view = await suggestion_for(db, user.id, placement, dt.date.today())
+    return _suggestion_response(view)
+
+
+@router.post(
+    "/placements/{placement_id}/deload-suggestion/accept",
+    response_model=DeloadAcceptResponse,
+)
+async def accept_deload_suggestion(
+    placement_id: uuid.UUID, user: CurrentUser, db: DbSession
+) -> DeloadAcceptResponse:
+    placement = await get_placement(db, user.id, placement_id)
+    if placement is None:
+        raise HTTPException(status_code=404, detail=PLACEMENT_NOT_FOUND)
+    try:
+        result = await accept_early_deload(db, user.id, placement, dt.date.today())
+    except DeloadError as exc:
+        code = status.HTTP_404_NOT_FOUND if exc.missing else 422
+        raise HTTPException(status_code=code, detail=str(exc)) from None
+    await db.commit()
+    return DeloadAcceptResponse(
+        placement_id=result.placement_id,
+        week_position=result.week_position,
+        volume_multiplier=result.volume_multiplier,
+        target_rir=result.target_rir,
+    )
 
 
 @router.get("/{block_id}", response_model=BlockResponse)

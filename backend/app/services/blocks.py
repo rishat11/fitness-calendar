@@ -17,6 +17,7 @@ from app.models.plan import STATUS_PLANNED, PlannedWorkout
 from app.schemas.block import BlockInput, BlockScheduleInput, BlockWeekInput
 from app.services.block_calendar import load_placements
 from app.services.block_rules import REPEAT_CONFLICT_DAYS, block_end, build_slots
+from app.services.deload import DeloadRoomError, WeekSpec, with_default_deload
 from app.services.plan import _lock_user_plan, list_entries, snapshot_from_template
 from app.services.workouts import COPY_SUFFIX, NAME_MAX, get_template
 
@@ -41,7 +42,20 @@ async def get_block(db: AsyncSession, user_id: uuid.UUID, block_id: uuid.UUID) -
     return await db.scalar(select(Block).where(Block.id == block_id, Block.user_id == user_id))
 
 
-def _build_weeks(inputs: Sequence[BlockWeekInput]) -> list[BlockWeek]:
+def _specs(weeks: Sequence[BlockWeekInput]) -> list[WeekSpec]:
+    return [
+        WeekSpec(
+            week_type=week.week_type,
+            rep_min=week.rep_min,
+            rep_max=week.rep_max,
+            target_rir=week.target_rir,
+            volume_multiplier=week.volume_multiplier,
+        )
+        for week in weeks
+    ]
+
+
+def _build_weeks(inputs: Sequence[WeekSpec]) -> list[BlockWeek]:
     return [
         BlockWeek(
             position=position,
@@ -82,13 +96,18 @@ async def _build_schedule(
 
 
 async def create_block(db: AsyncSession, user_id: uuid.UUID, data: BlockInput) -> Block:
+    """Сохраняет блок. Если разгрузки нет, добавляет её с объёмом 50% и RIR 4."""
+    try:
+        weeks = with_default_deload(_specs(data.weeks))
+    except DeloadRoomError as exc:
+        raise BlockError(str(exc)) from None
     schedule = await _build_schedule(db, user_id, data.schedule)
     block = Block(
         user_id=user_id,
         name=data.name,
-        length_weeks=len(data.weeks),
+        length_weeks=len(weeks),
         cycle_days=data.cycle_days,
-        weeks=_build_weeks(data.weeks),
+        weeks=_build_weeks(weeks),
         schedule=schedule,
     )
     db.add(block)
@@ -108,7 +127,7 @@ async def replace_block(
     block.weeks.clear()
     block.schedule.clear()
     await db.flush()
-    block.weeks.extend(_build_weeks(data.weeks))
+    block.weeks.extend(_build_weeks(_specs(data.weeks)))
     block.schedule.extend(schedule)
     await db.flush()
     return block
